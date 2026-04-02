@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
-using AiEmployee.Domain.Interfaces;
+using AiEmployee.Application.Dtos;
+using AiEmployee.Application.Interfaces;
 
 namespace AiEmployee.Infrastructure.AI;
 
@@ -12,15 +13,14 @@ public class AiClient : IAiClient
         _httpClient = httpClient;
     }
 
-    public async Task<string> AskAsync(string prompt)
+    public async Task<JudgmentResultDto> JudgeAsync(string prompt)
     {
         var response = await _httpClient.PostAsJsonAsync("http://localhost:8000/ai/judge", new JudgeRequest(prompt));
         response.EnsureSuccessStatusCode();
 
-        var payload = await response.Content.ReadFromJsonAsync<JudgeResponse>();
-        return payload?.Result ?? string.Empty;
+        var dto = await response.Content.ReadFromJsonAsync<JudgmentResultDto>();
+        return dto ?? new JudgmentResultDto();
     }
 
     private sealed record JudgeRequest(string Text);
-    private sealed record JudgeResponse(string Result);
 }
