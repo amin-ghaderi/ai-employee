@@ -7,18 +7,18 @@ namespace AiEmployee.Api.Controllers;
 [Route("telegram")]
 public class TelegramController : ControllerBase
 {
-    private readonly HandleMessageUseCase _handleMessageUseCase;
+    private readonly JudgeUseCase _judgeUseCase;
 
-    public TelegramController(HandleMessageUseCase handleMessageUseCase)
+    public TelegramController(JudgeUseCase judgeUseCase)
     {
-        _handleMessageUseCase = handleMessageUseCase;
+        _judgeUseCase = judgeUseCase;
     }
 
     [HttpPost("webhook")]
     public async Task<IActionResult> Webhook([FromBody] TelegramWebhookRequest request)
     {
-        var result = await _handleMessageUseCase.Execute(request.UserId, request.Text);
-        return Ok(new { result });
+        var judgment = await _judgeUseCase.Execute(request.UserId, request.Text);
+        return Ok(new { winner = judgment.Winner, reason = judgment.Reason });
     }
 }
 
