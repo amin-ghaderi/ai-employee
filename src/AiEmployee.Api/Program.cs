@@ -19,8 +19,8 @@ builder.Services.AddHttpClient<ITelegramClient, TelegramClient>();
 builder.Services.AddSingleton<IConversationRepository, InMemoryConversationRepository>();
 builder.Services.AddSingleton<IUserRepository, InMemoryUserRepository>();
 builder.Services.AddSingleton<ILeadRepository, InMemoryLeadRepository>();
-builder.Services.AddSingleton<AutomationService>();
-builder.Services.AddSingleton<LeadClassificationService>();
+builder.Services.AddScoped<AutomationService>();
+builder.Services.AddScoped<LeadClassificationService>();
 builder.Services.AddScoped<JudgeUseCase>();
 
 var app = builder.Build();

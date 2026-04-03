@@ -8,16 +8,18 @@ public sealed class AutomationService
     {
         var actions = new List<string>();
 
-        // Rule 1: inactive user
-        if (user.Tags.Contains("inactive"))
+        // Rule 1: inactive user (once per condition)
+        if (user.Tags.Contains("inactive") && !user.Tags.Contains("inactive_notified"))
         {
             actions.Add("send_reactivation_message");
+            user.Tags.Add("inactive_notified");
         }
 
-        // Rule 2: high engagement
-        if (user.Tags.Contains("high_engagement"))
+        // Rule 2: high engagement (once per condition)
+        if (user.Tags.Contains("high_engagement") && !user.Tags.Contains("high_engagement_notified"))
         {
             actions.Add("notify_admin_high_engagement");
+            user.Tags.Add("high_engagement_notified");
         }
 
         return actions;

@@ -74,6 +74,26 @@ public class TelegramWebhookController : ControllerBase
             commandToken = commandToken.Split('@')[0];
             var isJudgeCommand = string.Equals(commandToken, "/judge", StringComparison.OrdinalIgnoreCase);
 
+            async Task RunAutomationAsync()
+            {
+                var actions = _automationService.Evaluate(user);
+                foreach (var action in actions)
+                {
+                    if (action == "send_reactivation_message")
+                    {
+                        await _telegramClient.SendMessageAsync(chatId,
+                            "We miss you! Come back to the conversation 🙂");
+                    }
+
+                    if (action == "notify_admin_high_engagement")
+                    {
+                        _logger.LogInformation("High engagement user detected: {UserId}", user.Id);
+                    }
+                }
+
+                await _userRepository.SaveAsync(user);
+            }
+
             if (user.MessagesCount == 1 && !isJudgeCommand)
             {
                 var onboardingConversation = await _conversationRepository.GetByIdAsync(conversationId)
@@ -87,21 +107,6 @@ public class TelegramWebhookController : ControllerBase
                 return Ok();
             }
 
-            var actions = _automationService.Evaluate(user);
-            foreach (var action in actions)
-            {
-                if (action == "send_reactivation_message")
-                {
-                    await _telegramClient.SendMessageAsync(chatId,
-                        "We miss you! Come back to the conversation 🙂");
-                }
-
-                if (action == "notify_admin_high_engagement")
-                {
-                    _logger.LogInformation("High engagement user detected: {UserId}", user.Id);
-                }
-            }
-
             var command = commandToken;
 
             _logger.LogInformation("Incoming text: {Text}", text);
@@ -113,6 +118,7 @@ public class TelegramWebhookController : ControllerBase
                 if (existing is null || existing.Messages.Count == 0)
                 {
                     await _telegramClient.SendMessageAsync(chatId, "No conversation found.");
+                    await RunAutomationAsync();
                     return Ok();
                 }
 
@@ -171,6 +177,7 @@ public class TelegramWebhookController : ControllerBase
                 await _telegramClient.SendMessageAsync(chatId,
                     $"🏆 Winner: {conversationResult.Winner}\n💡 Reason: {conversationResult.Reason}");
 
+                await RunAutomationAsync();
                 return Ok();
             }
 
@@ -182,17 +189,22 @@ public class TelegramWebhookController : ControllerBase
 
             _logger.LogInformation("Message saved to conversation {ConversationId}", conversationId);
 
-            if (user.MessagesCount == 3)
+            var userMessages = conversation.Messages
+                .Where(m => m.UserId == messageUserId)
+                .OrderBy(m => m.CreatedAt)
+                .ToList();
+
+            if (userMessages.Count >= 3)
             {
-                var userMessages = conversation.Messages
-                    .Where(m => m.UserId == messageUserId)
-                    .OrderBy(m => m.CreatedAt)
-                    .ToList();
-                if (userMessages.Count >= 3)
+                var existingLeads = await _leadRepository.GetByUserIdAsync(user.Id);
+                if (!existingLeads.Any())
                 {
+                    var goal = userMessages[^2].Text;
+                    var experience = userMessages[^1].Text;
+
                     var lead = new Lead(user.Id);
-                    lead.Answers["goal"] = userMessages[1].Text;
-                    lead.Answers["experience"] = userMessages[2].Text;
+                    lead.Answers["goal"] = goal;
+                    lead.Answers["experience"] = experience;
 
                     var (userType, intent, potential) =
                         await _leadClassificationService.ClassifyAsync(lead.Answers);
@@ -213,6 +225,7 @@ public class TelegramWebhookController : ControllerBase
                 }
             }
 
+            await RunAutomationAsync();
             return Ok();
         }
         catch (Exception ex)

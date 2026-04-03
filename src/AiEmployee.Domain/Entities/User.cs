@@ -55,6 +55,11 @@ public sealed class User
 
     public void UpdateTags()
     {
+        var automationNotified = Tags
+            .Where(t => t is "inactive_notified" or "high_engagement_notified")
+            .Distinct()
+            .ToList();
+
         Tags.Clear();
 
         var now = DateTime.UtcNow;
@@ -70,6 +75,9 @@ public sealed class User
 
         if (EngagementScore > 0.7)
             Tags.Add("high_engagement");
+
+        foreach (var t in automationNotified)
+            Tags.Add(t);
     }
 
     public void UpdateProfile(string? username, string? firstName, string? lastName)
