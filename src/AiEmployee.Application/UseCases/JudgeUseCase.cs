@@ -14,8 +14,7 @@ public class JudgeUseCase
 
     public async Task<JudgmentResult> Execute(string userId, string text)
     {
-        var prompt = $"Analyze this conversation and decide who is right:\nUser:{userId}; Message:{text}";
-        var dto = await _aiClient.JudgeAsync(prompt);
+        var dto = await _aiClient.JudgeAsync(userId, text);
 
         return new JudgmentResult
         {

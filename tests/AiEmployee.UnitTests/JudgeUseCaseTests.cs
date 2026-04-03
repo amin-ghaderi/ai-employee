@@ -31,7 +31,7 @@ public class JudgeUseCaseTests
             _dto = dto;
         }
 
-        public Task<JudgmentResultDto> JudgeAsync(string prompt)
+        public Task<JudgmentResultDto> JudgeAsync(string userId, string text)
         {
             return Task.FromResult(_dto);
         }
