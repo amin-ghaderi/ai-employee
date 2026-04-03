@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 from ai.llama_client import JudgeOutputError, LlamaClient
 from db import SessionLocal
-from history_format import build_prompt_input, format_history
+from history_format import build_prompt_input
 from repositories.judgment_repository import JudgmentRepository
 
 
@@ -40,9 +40,8 @@ async def judge(request: JudgeRequest) -> JudgeResponse:
         db = SessionLocal()
         try:
             repo = JudgmentRepository(db)
-            recent = repo.get_recent_judgments(user_id=user_id, limit=5)
-            history = format_history(recent)
-            prompt_input = build_prompt_input(history, request.text)
+            # TEMP: Memory disabled to avoid bias in judgment (no prior judgments in prompt).
+            prompt_input = build_prompt_input(request.text)
 
             raw = await llama_client.ask(prompt_input)
             data = json.loads(raw)

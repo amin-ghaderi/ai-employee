@@ -26,15 +26,14 @@ def format_history(judgments: Sequence[Judgment]) -> str:
     return out
 
 
-def build_prompt_input(history: str, current_input: str) -> str:
-    """Block passed into the judge template as INPUT (includes context + current turn)."""
-    history_block = history.strip() if history else "(none)"
-    return f"""Previous context:
-{history_block}
+def build_prompt_input(current_input: str) -> str:
+    """Block passed into the judge template as INPUT (current turn only).
 
-Current input:
+    TEMP: Memory disabled to avoid bias in judgment — previous judgments are not included.
+    """
+    return f"""Current input:
 {current_input}
 
-Return ONLY JSON:
+Return JSON:
 {{ "winner": "...", "reason": "..." }}
 """

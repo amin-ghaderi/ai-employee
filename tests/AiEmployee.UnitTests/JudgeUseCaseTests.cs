@@ -11,15 +11,31 @@ public class JudgeUseCaseTests
     {
         var fakeClient = new FakeAiClient(new JudgmentResultDto
         {
-            Winner = "Ali",
+            Winner = "A",
             Reason = "Ali provided stronger argument",
         });
         var useCase = new JudgeUseCase(fakeClient);
 
         var result = await useCase.Execute("u1", "hello");
 
-        Assert.Equal("Ali", result.Winner);
+        Assert.Equal("A", result.Winner);
         Assert.Equal("Ali provided stronger argument", result.Reason);
+    }
+
+    [Fact]
+    public async Task Execute_NormalizesFreeTextWinner_ToUnknown()
+    {
+        var fakeClient = new FakeAiClient(new JudgmentResultDto
+        {
+            Winner = "Ali",
+            Reason = "Some reason",
+        });
+        var useCase = new JudgeUseCase(fakeClient);
+
+        var result = await useCase.Execute("u1", "hello");
+
+        Assert.Equal("UNKNOWN", result.Winner);
+        Assert.Equal("Some reason", result.Reason);
     }
 
     private sealed class FakeAiClient : IAiClient
