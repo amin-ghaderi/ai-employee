@@ -175,7 +175,7 @@ public class TelegramWebhookController : ControllerBase
                 _logger.LogInformation("Sending AI result to Telegram: Winner={Winner}", conversationResult.Winner);
 
                 await _telegramClient.SendMessageAsync(chatId,
-                    $"🏆 Winner: {conversationResult.Winner}\n💡 Reason: {conversationResult.Reason}");
+                    $"💡 {conversationResult.Reason}");
 
                 await RunAutomationAsync();
                 return Ok();
@@ -193,6 +193,12 @@ public class TelegramWebhookController : ControllerBase
                 .Where(m => m.UserId == messageUserId)
                 .OrderBy(m => m.CreatedAt)
                 .ToList();
+
+            if (userMessages.Count == 2)
+            {
+                await _telegramClient.SendMessageAsync(chatId,
+                    "Got it 👍 What's your experience level?");
+            }
 
             if (userMessages.Count >= 3)
             {

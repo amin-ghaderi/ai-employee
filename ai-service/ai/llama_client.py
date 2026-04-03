@@ -102,6 +102,13 @@ def _validate_judgment(data: dict[str, Any]) -> None:
         raise JudgeOutputError('Field "reason" is missing or empty')
 
 
+def _validate_lead_classification(data: dict[str, Any]) -> None:
+    for key in ("user_type", "intent", "potential"):
+        val = data.get(key)
+        if val is None or not str(val).strip():
+            raise JudgeOutputError(f'Field "{key}" is missing or empty')
+
+
 async def _post_ollama_generate(client: httpx.AsyncClient, payload: dict[str, Any]) -> dict[str, Any]:
     """
     POST to Ollama /api/generate with retries on network errors and timeouts only.
@@ -201,3 +208,58 @@ class LlamaClient:
         winner = str(parsed["winner"]).strip()
         reason = str(parsed["reason"]).strip()
         return json.dumps({"winner": winner, "reason": reason}, ensure_ascii=False)
+
+    async def ask_raw(self, prompt: str) -> str:
+        """
+        Sends raw prompt to Ollama WITHOUT wrapping it in judge template.
+        Returns a JSON string: {"user_type","intent","potential"}.
+        """
+        p = prompt.strip()
+
+        logger.info(
+            "llm_call_starting_raw | prompt_preview=%s",
+            _truncate(p, _PROMPT_LOG_MAX_CHARS),
+        )
+
+        payload = {
+            "model": OLLAMA_MODEL,
+            "prompt": p,
+            "stream": False,
+        }
+
+        print(f"[AI] Using model: {OLLAMA_MODEL}")
+
+        async with httpx.AsyncClient(timeout=OLLAMA_TIMEOUT) as client:
+            ollama_body = await _post_ollama_generate(client, payload)
+
+        if not isinstance(ollama_body, dict) or "response" not in ollama_body:
+            logger.error(
+                "ollama_response_missing_field | keys=%s",
+                list(ollama_body.keys()) if isinstance(ollama_body, dict) else type(ollama_body),
+            )
+            raise JudgeOutputError("Ollama response missing 'response' field")
+
+        raw_model_text = ollama_body["response"]
+        if not isinstance(raw_model_text, str):
+            raise JudgeOutputError("Ollama 'response' must be a string")
+
+        logger.info(
+            "llm_raw_response | response_preview=%s",
+            _truncate(raw_model_text, _RESPONSE_LOG_MAX_CHARS),
+        )
+
+        try:
+            parsed = _extract_json_object(raw_model_text)
+            _validate_lead_classification(parsed)
+        except JudgeOutputError as e:
+            logger.error("llm_lead_classification_failed | error=%s", e, exc_info=True)
+            raise
+
+        return json.dumps(
+            {
+                "user_type": str(parsed["user_type"]).strip(),
+                "intent": str(parsed["intent"]).strip(),
+                "potential": str(parsed["potential"]).strip(),
+            },
+            ensure_ascii=False,
+        )

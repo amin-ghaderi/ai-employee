@@ -29,6 +29,38 @@ class JudgeResponse(BaseModel):
     reason: str
 
 
+class LeadClassificationRequest(BaseModel):
+    prompt: str
+
+
+class LeadClassificationResponse(BaseModel):
+    user_type: str
+    intent: str
+    potential: str
+
+
+@app.post("/ai/lead/classify", response_model=LeadClassificationResponse)
+async def classify_lead(request: LeadClassificationRequest) -> LeadClassificationResponse:
+    try:
+        if not request.prompt or not request.prompt.strip():
+            raise HTTPException(status_code=400, detail="prompt is required")
+
+        prompt = request.prompt.strip()
+
+        raw = await llama_client.ask_raw(prompt)
+        data = json.loads(raw)
+
+        return LeadClassificationResponse(
+            user_type=data["user_type"],
+            intent=data["intent"],
+            potential=data["potential"],
+        )
+    except JudgeOutputError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    except (json.JSONDecodeError, KeyError, TypeError) as e:
+        raise HTTPException(status_code=502, detail=f"Invalid classification JSON: {e}") from e
+
+
 @app.post("/ai/judge", response_model=JudgeResponse)
 async def judge(request: JudgeRequest) -> JudgeResponse:
     try:
