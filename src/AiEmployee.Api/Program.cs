@@ -1,6 +1,8 @@
 using AiEmployee.Application.Interfaces;
+using AiEmployee.Application.Services;
 using AiEmployee.Application.UseCases;
 using AiEmployee.Infrastructure.AI;
+using AiEmployee.Infrastructure.Repositories;
 using AiEmployee.Infrastructure.Telegram;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -14,6 +16,11 @@ builder.Services.AddHttpClient<IAiClient, AiClient>(client =>
     client.Timeout = TimeSpan.FromMinutes(5);
 });
 builder.Services.AddHttpClient<ITelegramClient, TelegramClient>();
+builder.Services.AddSingleton<IConversationRepository, InMemoryConversationRepository>();
+builder.Services.AddSingleton<IUserRepository, InMemoryUserRepository>();
+builder.Services.AddSingleton<ILeadRepository, InMemoryLeadRepository>();
+builder.Services.AddSingleton<AutomationService>();
+builder.Services.AddSingleton<LeadClassificationService>();
 builder.Services.AddScoped<JudgeUseCase>();
 
 var app = builder.Build();

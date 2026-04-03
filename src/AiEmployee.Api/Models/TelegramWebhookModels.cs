@@ -13,8 +13,26 @@ public class TelegramMessage
     [JsonPropertyName("chat")]
     public TelegramChat? Chat { get; set; }
 
+    [JsonPropertyName("from")]
+    public TelegramUser? From { get; set; }
+
     [JsonPropertyName("text")]
     public string? Text { get; set; }
+}
+
+public class TelegramUser
+{
+    [JsonPropertyName("id")]
+    public long Id { get; set; }
+
+    [JsonPropertyName("first_name")]
+    public string? FirstName { get; set; }
+
+    [JsonPropertyName("last_name")]
+    public string? LastName { get; set; }
+
+    [JsonPropertyName("username")]
+    public string? Username { get; set; }
 }
 
 public class TelegramChat

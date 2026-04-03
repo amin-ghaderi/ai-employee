@@ -51,5 +51,10 @@ public class JudgeUseCaseTests
         {
             return Task.FromResult(_dto);
         }
+
+        public Task<LeadClassificationDto> ClassifyLeadAsync(string prompt)
+        {
+            return Task.FromResult(new LeadClassificationDto());
+        }
     }
 }
