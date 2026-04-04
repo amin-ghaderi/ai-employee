@@ -1,4 +1,5 @@
 using AiEmployee.Api.Models;
+using AiEmployee.Application;
 using AiEmployee.Application.Interfaces;
 using AiEmployee.Application.Services;
 using AiEmployee.Application.UseCases;
@@ -44,6 +45,8 @@ public class TelegramWebhookController : ControllerBase
     [HttpPost("webhook")]
     public async Task<IActionResult> Webhook([FromBody] TelegramUpdate? update)
     {
+        long chatId = 0;
+
         try
         {
             if (update?.Message?.Chat is null || string.IsNullOrWhiteSpace(update.Message.Text))
@@ -51,7 +54,7 @@ public class TelegramWebhookController : ControllerBase
                 return Ok();
             }
 
-            var chatId = update.Message.Chat.Id;
+            chatId = update.Message.Chat.Id;
             var text = update.Message.Text.Trim();
             var conversationId = chatId.ToString();
             var messageUserId = update.Message.From?.Id.ToString() ?? conversationId;
@@ -234,10 +237,29 @@ public class TelegramWebhookController : ControllerBase
             await RunAutomationAsync();
             return Ok();
         }
+        catch (AiServiceException ex)
+        {
+            _logger.LogError(ex, "AI service request failed");
+
+            if (chatId != 0)
+            {
+                try
+                {
+                    await _telegramClient.SendMessageAsync(chatId,
+                        "⚠️ Something went wrong. Please try again.");
+                }
+                catch (Exception notifyEx)
+                {
+                    _logger.LogError(notifyEx, "Failed to send error notification to Telegram");
+                }
+            }
+
+            return Ok();
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Telegram webhook processing failed");
-            return Ok();
+            return StatusCode(500);
         }
     }
 }
