@@ -45,6 +45,8 @@ public class TelegramWebhookController : ControllerBase
     [HttpPost("webhook")]
     public async Task<IActionResult> Webhook([FromBody] TelegramUpdate? update)
     {
+        Console.WriteLine("WEBHOOK HIT");
+
         long chatId = 0;
 
         try
@@ -56,6 +58,7 @@ public class TelegramWebhookController : ControllerBase
 
             chatId = update.Message.Chat.Id;
             var text = update.Message.Text.Trim();
+            Console.WriteLine($"TEXT RECEIVED: {text}");
             var conversationId = chatId.ToString();
             var messageUserId = update.Message.From?.Id.ToString() ?? conversationId;
             var username = update.Message.From?.Username;
@@ -76,6 +79,8 @@ public class TelegramWebhookController : ControllerBase
             var commandToken = text.Split(' ')[0];
             commandToken = commandToken.Split('@')[0];
             var isJudgeCommand = string.Equals(commandToken, "/judge", StringComparison.OrdinalIgnoreCase);
+            if (isJudgeCommand)
+                Console.WriteLine("JUDGE COMMAND DETECTED");
 
             async Task RunAutomationAsync()
             {
@@ -117,17 +122,33 @@ public class TelegramWebhookController : ControllerBase
 
             if (isJudgeCommand)
             {
+                Console.WriteLine("ENTERED JUDGE BLOCK");
                 var existing = await _conversationRepository.GetByIdAsync(conversationId);
                 if (existing is null || existing.Messages.Count == 0)
                 {
+                    Console.WriteLine("SENDING TELEGRAM RESPONSE");
                     await _telegramClient.SendMessageAsync(chatId, "No conversation found.");
                     await RunAutomationAsync();
                     return Ok();
                 }
 
-                var lastMessages = existing.Messages
-                    .TakeLast(10)
+                var contextMessages = existing.Messages
+                    .Where(m => !m.Text.StartsWith("/judge", StringComparison.OrdinalIgnoreCase))
+                    .TakeLast(50)
+                    .Select(m => new Message(
+                        m.UserId,
+                        m.Text.Length > 500 ? m.Text.Substring(0, 500) : m.Text,
+                        m.Username,
+                        m.FirstName,
+                        m.LastName))
                     .ToList();
+
+                if (contextMessages.Count == 0)
+                {
+                    await _telegramClient.SendMessageAsync(chatId, "Not enough conversation to judge.");
+                    await RunAutomationAsync();
+                    return Ok();
+                }
 
                 var participants = new Dictionary<string, string>();
                 var nextLabel = 'A';
@@ -167,18 +188,23 @@ public class TelegramWebhookController : ControllerBase
                     return GetFallbackLabel(m.UserId);
                 }
 
-                var prompt = string.Join("\n", lastMessages.Select(m =>
+                var prompt = string.Join("\n", contextMessages.Select(m =>
                 {
                     var name = BuildDisplayName(m);
                     return $"{name}: {m.Text}";
                 }));
 
+                Console.WriteLine("CALLING JUDGE USE CASE");
                 var conversationResult = await _judgeUseCase.Execute(conversationId, prompt);
 
-                _logger.LogInformation("Sending AI result to Telegram: Winner={Winner}", conversationResult.Winner);
+                _logger.LogInformation(
+                    "AI Judgment Result | Winner: {Winner} | Reason: {Reason}",
+                    conversationResult.Winner,
+                    conversationResult.Reason);
 
+                Console.WriteLine("SENDING TELEGRAM RESPONSE");
                 await _telegramClient.SendMessageAsync(chatId,
-                    $"💡 {conversationResult.Reason}");
+                    $"💡 {conversationResult.Reason}\n\n🏆 Winner: {conversationResult.Winner}");
 
                 await RunAutomationAsync();
                 return Ok();
