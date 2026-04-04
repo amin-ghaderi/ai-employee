@@ -7,35 +7,35 @@ namespace AiEmployee.UnitTests;
 public class JudgeUseCaseTests
 {
     [Fact]
-    public async Task Execute_Returns_JudgmentResult_From_Ai()
+    public async Task Execute_Returns_JudgmentResult_From_Ai_PassingWinnerThrough()
     {
         var fakeClient = new FakeAiClient(new JudgmentResultDto
         {
-            Winner = "A",
+            Winner = "Ali",
             Reason = "Ali provided stronger argument",
         });
         var useCase = new JudgeUseCase(fakeClient);
 
         var result = await useCase.Execute("u1", "hello");
 
-        Assert.Equal("A", result.Winner);
+        Assert.Equal("Ali", result.Winner);
         Assert.Equal("Ali provided stronger argument", result.Reason);
     }
 
     [Fact]
-    public async Task Execute_NormalizesFreeTextWinner_ToUnknown()
+    public async Task Execute_PassesThroughWinner_WithoutNormalization()
     {
         var fakeClient = new FakeAiClient(new JudgmentResultDto
         {
-            Winner = "Ali",
-            Reason = "Some reason",
+            Winner = "Sam Taylor",
+            Reason = "Clearer reasoning on the disputed point.",
         });
         var useCase = new JudgeUseCase(fakeClient);
 
         var result = await useCase.Execute("u1", "hello");
 
-        Assert.Equal("UNKNOWN", result.Winner);
-        Assert.Equal("Some reason", result.Reason);
+        Assert.Equal("Sam Taylor", result.Winner);
+        Assert.Equal("Clearer reasoning on the disputed point.", result.Reason);
     }
 
     private sealed class FakeAiClient : IAiClient
