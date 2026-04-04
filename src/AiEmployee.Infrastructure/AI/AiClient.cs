@@ -1,4 +1,7 @@
+using System.Net.Http;
 using System.Net.Http.Json;
+using System.Text.Json;
+using AiEmployee.Application;
 using AiEmployee.Application.Dtos;
 using AiEmployee.Application.Interfaces;
 using Microsoft.Extensions.Logging;
@@ -18,30 +21,97 @@ public class AiClient : IAiClient
 
     public async Task<JudgmentResultDto> JudgeAsync(string userId, string text)
     {
-        var response = await _httpClient.PostAsJsonAsync(
-            "http://localhost:8000/ai/judge",
-            new { user_id = userId, text });
-        response.EnsureSuccessStatusCode();
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            try
+            {
+                var response = await _httpClient.PostAsJsonAsync(
+                    "http://localhost:8000/ai/judge",
+                    new { user_id = userId, text });
+                response.EnsureSuccessStatusCode();
 
-        var dto = await response.Content.ReadFromJsonAsync<JudgmentResultDto>();
-        return dto ?? new JudgmentResultDto();
+                var dto = await response.Content.ReadFromJsonAsync<JudgmentResultDto>();
+                if (dto is null)
+                    throw new AiServiceException("AI returned empty judge response.");
+
+                return dto;
+            }
+            catch (AiServiceException)
+            {
+                throw;
+            }
+            catch (JsonException ex)
+            {
+                throw new AiServiceException("AI judge request failed.", ex);
+            }
+            catch (HttpRequestException) when (attempt < 2)
+            {
+                await Task.Delay(500 * (attempt + 1));
+            }
+            catch (TaskCanceledException) when (attempt < 2)
+            {
+                await Task.Delay(500 * (attempt + 1));
+            }
+            catch (HttpRequestException ex)
+            {
+                throw new AiServiceException("AI judge request failed.", ex);
+            }
+            catch (TaskCanceledException ex)
+            {
+                throw new AiServiceException("AI judge request failed.", ex);
+            }
+        }
+
+        throw new AiServiceException("AI judge request failed.");
     }
 
     public async Task<LeadClassificationDto> ClassifyLeadAsync(string prompt)
     {
         _logger.LogInformation("Calling AI lead classification...");
 
-        var response = await _httpClient.PostAsJsonAsync(
-            "http://localhost:8000/ai/lead/classify",
-            new { prompt });
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            try
+            {
+                var response = await _httpClient.PostAsJsonAsync(
+                    "http://localhost:8000/ai/lead/classify",
+                    new { prompt });
 
-        response.EnsureSuccessStatusCode();
+                response.EnsureSuccessStatusCode();
 
-        var result = await response.Content.ReadFromJsonAsync<LeadClassificationDto>();
+                var result = await response.Content.ReadFromJsonAsync<LeadClassificationDto>();
 
-        if (result is null)
-            throw new InvalidOperationException("AI returned null.");
+                if (result is null)
+                    throw new AiServiceException("AI returned null classification response.");
 
-        return result;
+                return result;
+            }
+            catch (AiServiceException)
+            {
+                throw;
+            }
+            catch (JsonException ex)
+            {
+                throw new AiServiceException("AI lead classification request failed.", ex);
+            }
+            catch (HttpRequestException) when (attempt < 2)
+            {
+                await Task.Delay(500 * (attempt + 1));
+            }
+            catch (TaskCanceledException) when (attempt < 2)
+            {
+                await Task.Delay(500 * (attempt + 1));
+            }
+            catch (HttpRequestException ex)
+            {
+                throw new AiServiceException("AI lead classification request failed.", ex);
+            }
+            catch (TaskCanceledException ex)
+            {
+                throw new AiServiceException("AI lead classification request failed.", ex);
+            }
+        }
+
+        throw new AiServiceException("AI lead classification request failed.");
     }
 }
