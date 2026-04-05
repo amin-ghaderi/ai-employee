@@ -104,6 +104,8 @@ internal sealed class BehaviorConfiguration : IEntityTypeConfiguration<Behavior>
         builder.Property(e => e.JudgeCommandPrefix).IsRequired().HasMaxLength(256);
         builder.Property(e => e.ExcludeCommandsFromJudgeContext).IsRequired();
         builder.Property(e => e.OnboardingFirstMessageOnly).IsRequired();
+        builder.Property(e => e.HotLeadPotentialValue).IsRequired().HasMaxLength(128);
+        builder.Property(e => e.HotLeadTag).IsRequired().HasMaxLength(128);
 
         builder.OwnsOne(e => e.LeadFlow, lf =>
         {
@@ -124,6 +126,31 @@ internal sealed class BehaviorConfiguration : IEntityTypeConfiguration<Behavior>
                 v => AutomationRulesConverters.ToJson(v),
                 v => AutomationRulesConverters.FromJson(v))
             .Metadata.SetValueComparer(AutomationRulesConverters.CreateComparer());
+
+        builder.OwnsOne(e => e.EngagementRules, er =>
+        {
+            er.Property(r => r.NewUserWindowHours)
+                .HasColumnName("EngagementNewUserWindowHours")
+                .IsRequired();
+            er.Property(r => r.ActiveMessageThreshold)
+                .HasColumnName("EngagementActiveMessageThreshold")
+                .IsRequired();
+            er.Property(r => r.InactiveHoursThreshold)
+                .HasColumnName("EngagementInactiveHoursThreshold")
+                .IsRequired();
+            er.Property(r => r.HighEngagementScoreThreshold)
+                .HasColumnName("EngagementHighEngagementScoreThreshold")
+                .IsRequired();
+            er.Property(r => r.EngagementNormalizationFactor)
+                .HasColumnName("EngagementNormalizationFactor")
+                .IsRequired();
+            er.Property(r => r.StickyTags)
+                .HasColumnName("EngagementStickyTagsJson")
+                .HasConversion(
+                    v => AnswerKeysConverters.ToJson(v),
+                    v => AnswerKeysConverters.FromJson(v))
+                .Metadata.SetValueComparer(AnswerKeysConverters.CreateComparer());
+        });
     }
 }
 

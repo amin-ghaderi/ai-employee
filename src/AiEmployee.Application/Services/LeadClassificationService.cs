@@ -1,9 +1,13 @@
 using AiEmployee.Application.Interfaces;
+using AiEmployee.Domain.BotConfiguration;
 
 namespace AiEmployee.Application.Services;
 
 public sealed class LeadClassificationService
 {
+    private const string GoalPlaceholder = "{{goal}}";
+    private const string ExperiencePlaceholder = "{{experience}}";
+
     private readonly IAiClient _aiClient;
 
     public LeadClassificationService(IAiClient aiClient)
@@ -11,41 +15,32 @@ public sealed class LeadClassificationService
         _aiClient = aiClient;
     }
 
-    public async Task<(string userType, string intent, string potential)> ClassifyAsync(Dictionary<string, string> answers)
+    public async Task<(string userType, string intent, string potential)> ClassifyAsync(
+        Persona persona,
+        Dictionary<string, string> answers,
+        IReadOnlyList<string> answerKeys)
     {
-        var prompt = BuildPrompt(answers);
+        var prompt = BuildPrompt(persona, answers, answerKeys);
 
         var result = await _aiClient.ClassifyLeadAsync(prompt);
 
         return (result.UserType, result.Intent, result.Potential);
     }
 
-    private string BuildPrompt(Dictionary<string, string> answers)
+    private static string BuildPrompt(
+        Persona persona,
+        Dictionary<string, string> answers,
+        IReadOnlyList<string> answerKeys)
     {
-        var goal = answers.ContainsKey("goal") ? answers["goal"] : "";
-        var experience = answers.ContainsKey("experience") ? answers["experience"] : "";
+        var goal = answerKeys.Count > 0 && answers.ContainsKey(answerKeys[0])
+            ? answers[answerKeys[0]]
+            : "";
+        var experience = answerKeys.Count > 1 && answers.ContainsKey(answerKeys[1])
+            ? answers[answerKeys[1]]
+            : "";
 
-        return $@"
-You are an AI that classifies users.
-
-User answers:
-
-* Goal: {goal}
-* Experience: {experience}
-
-Classify into:
-
-user_type: beginner | intermediate | advanced
-intent: learning | buying | networking
-potential: low | medium | high
-
-Return ONLY JSON:
-
-{{
-""user_type"": ""..."",
-""intent"": ""..."",
-""potential"": ""...""
-}}
-";
+        return persona.Prompts.Lead
+            .Replace(GoalPlaceholder, goal, StringComparison.Ordinal)
+            .Replace(ExperiencePlaceholder, experience, StringComparison.Ordinal);
     }
 }

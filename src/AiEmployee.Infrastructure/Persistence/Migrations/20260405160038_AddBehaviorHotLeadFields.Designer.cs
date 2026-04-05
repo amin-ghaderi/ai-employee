@@ -3,6 +3,7 @@ using System;
 using AiEmployee.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace AiEmployee.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AiEmployeeDbContext))]
-    partial class AiEmployeeDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260405160038_AddBehaviorHotLeadFields")]
+    partial class AddBehaviorHotLeadFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.0");
@@ -397,44 +400,6 @@ namespace AiEmployee.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("AiEmployee.Domain.BotConfiguration.Behavior", b =>
                 {
-                    b.OwnsOne("AiEmployee.Domain.BotConfiguration.EngagementRules", "EngagementRules", b1 =>
-                        {
-                            b1.Property<Guid>("BehaviorId")
-                                .HasColumnType("TEXT");
-
-                            b1.Property<int>("ActiveMessageThreshold")
-                                .HasColumnType("INTEGER")
-                                .HasColumnName("EngagementActiveMessageThreshold");
-
-                            b1.Property<double>("EngagementNormalizationFactor")
-                                .HasColumnType("REAL")
-                                .HasColumnName("EngagementNormalizationFactor");
-
-                            b1.Property<double>("HighEngagementScoreThreshold")
-                                .HasColumnType("REAL")
-                                .HasColumnName("EngagementHighEngagementScoreThreshold");
-
-                            b1.Property<int>("InactiveHoursThreshold")
-                                .HasColumnType("INTEGER")
-                                .HasColumnName("EngagementInactiveHoursThreshold");
-
-                            b1.Property<int>("NewUserWindowHours")
-                                .HasColumnType("INTEGER")
-                                .HasColumnName("EngagementNewUserWindowHours");
-
-                            b1.Property<string>("StickyTags")
-                                .IsRequired()
-                                .HasColumnType("TEXT")
-                                .HasColumnName("EngagementStickyTagsJson");
-
-                            b1.HasKey("BehaviorId");
-
-                            b1.ToTable("Behaviors");
-
-                            b1.WithOwner()
-                                .HasForeignKey("BehaviorId");
-                        });
-
                     b.OwnsOne("AiEmployee.Domain.BotConfiguration.LeadFlow", "LeadFlow", b1 =>
                         {
                             b1.Property<Guid>("BehaviorId")
@@ -460,9 +425,6 @@ namespace AiEmployee.Infrastructure.Persistence.Migrations
                             b1.WithOwner()
                                 .HasForeignKey("BehaviorId");
                         });
-
-                    b.Navigation("EngagementRules")
-                        .IsRequired();
 
                     b.Navigation("LeadFlow")
                         .IsRequired();

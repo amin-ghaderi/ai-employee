@@ -4,6 +4,7 @@ using AiEmployee.Application.Interfaces;
 using AiEmployee.Application.Prompting;
 using AiEmployee.Application.Services;
 using AiEmployee.Application.UseCases;
+using AiEmployee.Domain.BotConfiguration;
 using AiEmployee.Domain.Entities;
 using Microsoft.Extensions.Logging;
 
@@ -20,6 +21,7 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
     private readonly LeadClassificationService _leadClassificationService;
     private readonly IBotResolver _botResolver;
     private readonly PromptBuilder _promptBuilder;
+    private readonly UserTaggingService _userTaggingService;
     private readonly ILogger<IncomingMessageHandler> _logger;
 
     public IncomingMessageHandler(
@@ -32,6 +34,7 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
         LeadClassificationService leadClassificationService,
         IBotResolver botResolver,
         PromptBuilder promptBuilder,
+        UserTaggingService userTaggingService,
         ILogger<IncomingMessageHandler> logger)
     {
         _judgeUseCase = judgeUseCase;
@@ -43,6 +46,7 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
         _leadClassificationService = leadClassificationService;
         _botResolver = botResolver;
         _promptBuilder = promptBuilder;
+        _userTaggingService = userTaggingService;
         _logger = logger;
     }
 
@@ -55,6 +59,8 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
         var firstName = Meta(message.Metadata, IncomingMessageMetadataKeys.FirstName);
         var lastName = Meta(message.Metadata, IncomingMessageMetadataKeys.LastName);
 
+        LanguageProfile? languageProfile = null;
+
         try
         {
             Console.WriteLine("WEBHOOK HIT");
@@ -64,16 +70,18 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
                 ?? new User(messageUserId);
             user.UpdateProfile(username, firstName, lastName);
             user.RegisterMessage();
+
+            var judgeBotConfig = await _botResolver.ResolveAsync(message);
+            var behavior = judgeBotConfig.Behavior;
+            languageProfile = judgeBotConfig.LanguageProfile;
+
+            _userTaggingService.Apply(user, behavior.EngagementRules);
             await _userRepository.SaveAsync(user);
 
             _logger.LogInformation(
                 "User updated: {UserId}, Messages={Count}",
                 user.Id,
                 user.MessagesCount);
-
-            var judgeBotConfig = await _botResolver.ResolveAsync(message);
-            var behavior = judgeBotConfig.Behavior;
-            var languageProfile = judgeBotConfig.LanguageProfile;
 
             var commandToken = text.Split(' ')[0];
             commandToken = commandToken.Split('@')[0];
@@ -86,20 +94,20 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
 
             async Task RunAutomationAsync()
             {
-                var actions = _automationService.Evaluate(user);
+                var actions = _automationService.Evaluate(user, behavior.AutomationRules);
                 foreach (var action in actions)
                 {
-                    if (action == "send_reactivation_message")
+                    switch (action)
                     {
-                        await _outgoingClient.SendMessageAsync(
-                            message.Channel,
-                            message.ExternalChatId,
-                            "We miss you! Come back to the conversation 🙂");
-                    }
-
-                    if (action == "notify_admin_high_engagement")
-                    {
-                        _logger.LogInformation("High engagement user detected: {UserId}", user.Id);
+                        case AutomationActionKind.SendReactivationMessage:
+                            await _outgoingClient.SendMessageAsync(
+                                message.Channel,
+                                message.ExternalChatId,
+                                languageProfile.ReactivationMessage);
+                            break;
+                        case AutomationActionKind.NotifyAdminHighEngagement:
+                            _logger.LogInformation("High engagement user detected: {UserId}", user.Id);
+                            break;
                     }
                 }
 
@@ -117,7 +125,7 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
                 await _outgoingClient.SendMessageAsync(
                     message.Channel,
                     message.ExternalChatId,
-                    "Hey! Quick question — what is your goal?");
+                    languageProfile.OnboardingGoalQuestion);
                 return;
             }
 
@@ -191,44 +199,55 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
                 .OrderBy(m => m.CreatedAt)
                 .ToList();
 
-            if (userMessages.Count == 2)
+            var leadFlow = behavior.LeadFlow;
+
+            if (leadFlow.FollowUpIndex is int followUpIndex && userMessages.Count == followUpIndex)
             {
                 await _outgoingClient.SendMessageAsync(
                     message.Channel,
                     message.ExternalChatId,
-                    "Got it 👍 What's your experience level?");
+                    languageProfile.ExperienceFollowUpQuestion);
             }
 
-            if (userMessages.Count >= 3)
+            if (leadFlow.CaptureIndex is int captureIndex && userMessages.Count >= captureIndex)
             {
                 var existingLeads = await _leadRepository.GetByUserIdAsync(user.Id);
                 if (!existingLeads.Any())
                 {
-                    var goal = userMessages[^2].Text;
-                    var experience = userMessages[^1].Text;
-
-                    var lead = new Lead(user.Id);
-                    lead.Answers["goal"] = goal;
-                    lead.Answers["experience"] = experience;
-
-                    var (userType, intent, potential) =
-                        await _leadClassificationService.ClassifyAsync(lead.Answers);
-                    lead.UserType = userType;
-                    lead.Intent = intent;
-                    lead.Potential = potential;
-
-                    await _leadRepository.SaveAsync(lead);
-
-                    if (string.Equals(potential, "high", StringComparison.OrdinalIgnoreCase))
+                    var answerKeys = leadFlow.AnswerKeys;
+                    var n = answerKeys.Count;
+                    if (userMessages.Count >= n && n > 0)
                     {
-                        user.Tags.Add("hot_lead");
-                        await _userRepository.SaveAsync(user);
-                    }
+                        var start = userMessages.Count - n;
+                        var lead = new Lead(user.Id);
+                        for (var i = 0; i < n; i++)
+                            lead.Answers[answerKeys[i]] = userMessages[start + i].Text;
 
-                    await _outgoingClient.SendMessageAsync(
-                        message.Channel,
-                        message.ExternalChatId,
-                        "Got it! Thanks for sharing 🙌");
+                        var (userType, intent, potential) =
+                            await _leadClassificationService.ClassifyAsync(
+                                judgeBotConfig.Persona,
+                                lead.Answers,
+                                behavior.LeadFlow.AnswerKeys);
+                        lead.UserType = userType;
+                        lead.Intent = intent;
+                        lead.Potential = potential;
+
+                        await _leadRepository.SaveAsync(lead);
+
+                        if (string.Equals(
+                                potential,
+                                behavior.HotLeadPotentialValue,
+                                StringComparison.OrdinalIgnoreCase))
+                        {
+                            user.Tags.Add(behavior.HotLeadTag);
+                            await _userRepository.SaveAsync(user);
+                        }
+
+                        await _outgoingClient.SendMessageAsync(
+                            message.Channel,
+                            message.ExternalChatId,
+                            languageProfile.LeadThanksMessage);
+                    }
                 }
             }
 
@@ -243,7 +262,9 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
                 await _outgoingClient.SendMessageAsync(
                     message.Channel,
                     message.ExternalChatId,
-                    "⚠️ Something went wrong. Please try again.");
+                    languageProfile is not null
+                        ? languageProfile.GenericErrorMessage
+                        : "⚠️ Something went wrong. Please try again.");
             }
             catch (Exception notifyEx)
             {

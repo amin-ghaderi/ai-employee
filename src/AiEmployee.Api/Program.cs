@@ -39,6 +39,7 @@ builder.Services.AddScoped<IChannelMessageSender, TelegramMessageSender>();
 builder.Services.AddScoped<IOutgoingMessageClient, OutgoingMessageDispatcher>();
 builder.Services.AddScoped<IIncomingMessageHandler, IncomingMessageHandler>();
 builder.Services.AddScoped<AutomationService>();
+builder.Services.AddScoped<UserTaggingService>();
 builder.Services.AddScoped<LeadClassificationService>();
 builder.Services.AddSingleton<PromptBuilder>();
 builder.Services.AddScoped<JudgeUseCase>();

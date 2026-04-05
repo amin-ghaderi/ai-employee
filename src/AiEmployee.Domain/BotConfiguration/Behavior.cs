@@ -10,6 +10,9 @@ public sealed class Behavior
     public bool OnboardingFirstMessageOnly { get; private set; }
     public LeadFlow LeadFlow { get; private set; } = null!;
     public IReadOnlyList<AutomationRule> AutomationRules { get; private set; } = Array.Empty<AutomationRule>();
+    public EngagementRules EngagementRules { get; private set; } = null!;
+    public string HotLeadPotentialValue { get; private set; } = string.Empty;
+    public string HotLeadTag { get; private set; } = string.Empty;
 
     private Behavior()
     {
@@ -23,7 +26,10 @@ public sealed class Behavior
         bool excludeCommandsFromJudgeContext,
         bool onboardingFirstMessageOnly,
         LeadFlow leadFlow,
-        IReadOnlyList<AutomationRule> automationRules)
+        IReadOnlyList<AutomationRule> automationRules,
+        EngagementRules engagementRules,
+        string hotLeadPotentialValue,
+        string hotLeadTag)
     {
         Id = id;
         JudgeContextMessageCount = judgeContextMessageCount;
@@ -33,5 +39,8 @@ public sealed class Behavior
         OnboardingFirstMessageOnly = onboardingFirstMessageOnly;
         LeadFlow = leadFlow;
         AutomationRules = automationRules ?? Array.Empty<AutomationRule>();
+        EngagementRules = engagementRules;
+        HotLeadPotentialValue = hotLeadPotentialValue;
+        HotLeadTag = hotLeadTag;
     }
 }
