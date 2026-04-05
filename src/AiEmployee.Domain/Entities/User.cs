@@ -5,15 +5,19 @@ namespace AiEmployee.Domain.Entities;
 /// </summary>
 public sealed class User
 {
-    public string Id { get; }
+    public string Id { get; private set; } = string.Empty;
     public string? Username { get; private set; }
     public string? FirstName { get; private set; }
     public string? LastName { get; private set; }
-    public DateTime JoinedAt { get; }
+    public DateTime JoinedAt { get; private set; }
     public DateTime LastActiveAt { get; private set; }
     public int MessagesCount { get; private set; }
     public double EngagementScore { get; private set; }
-    public List<string> Tags { get; }
+    public List<string> Tags { get; private set; } = new();
+
+    private User()
+    {
+    }
 
     public User(string id)
     {

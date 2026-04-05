@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace AiEmployee.Api.Models;
+namespace AiEmployee.Infrastructure.Telegram;
 
 public class TelegramUpdate
 {

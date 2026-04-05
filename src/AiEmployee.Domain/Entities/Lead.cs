@@ -5,13 +5,17 @@ namespace AiEmployee.Domain.Entities;
 /// </summary>
 public sealed class Lead
 {
-    public string Id { get; }
-    public string UserId { get; }
-    public Dictionary<string, string> Answers { get; }
+    public string Id { get; private set; } = string.Empty;
+    public string UserId { get; private set; } = string.Empty;
+    public Dictionary<string, string> Answers { get; private set; } = new();
     public string UserType { get; set; } = string.Empty;
     public string Intent { get; set; } = string.Empty;
     public string Potential { get; set; } = string.Empty;
-    public DateTime CreatedAt { get; }
+    public DateTime CreatedAt { get; private set; }
+
+    private Lead()
+    {
+    }
 
     public Lead(string userId)
     {

@@ -24,7 +24,6 @@ OLLAMA_TIMEOUT = float(os.environ.get("OLLAMA_TIMEOUT_SECONDS", "120"))
 
 logger.info("Using LLM model: %s", OLLAMA_MODEL)
 
-# 1 initial attempt + 3 retries; backoff before attempts 2–4
 _MAX_OLLAMA_ATTEMPTS = 4
 _RETRY_BACKOFF_SECONDS = (0.5, 1.0, 2.0)
 
@@ -34,77 +33,6 @@ _RESPONSE_LOG_MAX_CHARS = 4000
 
 class JudgeOutputError(Exception):
     """Raised when Ollama output is missing, invalid JSON, or fails validation."""
-
-
-JUDGE_PROMPT_TEMPLATE = """
-You are an expert AI judge with a friendly and supportive tone.
-
-Your task is to analyze a conversation and determine who has the stronger argument.
-
-You MUST strictly follow these language rules:
-
-1. Detect the dominant language of the conversation input.
-
-2. Your ENTIRE response MUST be in that same language:
-   * Persian → respond ONLY in Persian
-   * English → respond ONLY in English
-   * Swedish → respond ONLY in Swedish
-
-3. You are NOT allowed to:
-   * Mix languages
-   * Switch languages mid-response
-   * Use English if the conversation is Persian
-   * Use Persian if the conversation is English
-
-4. Even if names or usernames are in another language, IGNORE that and keep the response language consistent.
-
-5. This rule has HIGH PRIORITY over all other instructions.
-
-TONE:
-- Be warm, positive, and human-like.
-- Avoid being robotic or overly formal.
-- Sound like a thoughtful and fair human.
-
-OUTPUT RULES:
-- You MUST return ONLY valid JSON.
-- No extra text outside JSON.
-- No markdown.
-
-FORMAT:
-{
-  "winner": "string",
-  "reason": "string"
-}
-
-GUIDELINES:
-- "winner" must be EXACTLY the name as it appears in the conversation.
-- The "reason" must be clear, natural, friendly, and slightly warm.
-- It should sound like a human explanation, not robotic.
-- Keep it concise (1–2 sentences).
-
-EXAMPLES:
-
-Persian:
-{
-  "winner": "رضا",
-  "reason": "رضا درست می‌گوید، چون ۲+۲ برابر با ۴ است و توضیحش منطقی‌تر است."
-}
-
-English:
-{
-  "winner": "Reza",
-  "reason": "Reza is correct because 2+2 equals 4, and the reasoning is clear and logical."
-}
-
-Swedish:
-{
-  "winner": "Reza",
-  "reason": "Reza har rätt eftersom 2+2 är 4 och förklaringen är tydlig och logisk."
-}
-
-INPUT:
-{{input}}
-"""
 
 
 def _truncate(text: str, max_chars: int) -> str:
@@ -132,7 +60,7 @@ def _extract_json_object(text: str) -> dict[str, Any]:
             raise JudgeOutputError("Model response is not valid JSON") from e
 
     if not isinstance(parsed, dict):
-        raise JudgeOutputError("Parsed JSON must be an object with winner and reason")
+        raise JudgeOutputError("Parsed JSON must be an object")
     return parsed
 
 
@@ -154,10 +82,7 @@ def _validate_lead_classification(data: dict[str, Any]) -> None:
 
 
 async def _post_ollama_generate(client: httpx.AsyncClient, payload: dict[str, Any]) -> dict[str, Any]:
-    """
-    POST to Ollama /api/generate with retries on network errors and timeouts only.
-    HTTP status errors are not retried.
-    """
+    """POST to Ollama /api/generate with retries on network errors and timeouts only."""
     last_error: Exception | None = None
 
     for attempt in range(_MAX_OLLAMA_ATTEMPTS):
@@ -207,17 +132,25 @@ async def _post_ollama_generate(client: httpx.AsyncClient, payload: dict[str, An
 
 
 class LlamaClient:
-    async def ask(self, user_input: str) -> str:
-        full_prompt = JUDGE_PROMPT_TEMPLATE.replace("{{input}}", user_input)
+    """Pure execution: Ollama I/O, JSON parse, field validation. No prompt templates."""
+
+    async def run_judge_prompt(self, prompt: str) -> str:
+        """
+        Send a complete judge prompt to Ollama. Validates model output as judgment JSON.
+        Returns a JSON string: {"winner","reason"}.
+        """
+        p = prompt.strip()
+        if not p:
+            raise JudgeOutputError("Empty judge prompt")
 
         logger.info(
-            "llm_call_starting | prompt_preview=%s",
-            _truncate(full_prompt, _PROMPT_LOG_MAX_CHARS),
+            "judge_execute | prompt_preview=%s",
+            _truncate(p, _PROMPT_LOG_MAX_CHARS),
         )
 
         payload = {
             "model": OLLAMA_MODEL,
-            "prompt": full_prompt,
+            "prompt": p,
             "stream": False,
         }
 
@@ -255,7 +188,7 @@ class LlamaClient:
 
     async def ask_raw(self, prompt: str) -> str:
         """
-        Sends raw prompt to Ollama WITHOUT wrapping it in judge template.
+        Sends raw prompt to Ollama for lead classification (no judge validation rules).
         Returns a JSON string: {"user_type","intent","potential"}.
         """
         p = prompt.strip()

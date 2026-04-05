@@ -1,127 +1,172 @@
-# 🚀 AI Employee Platform
+# AI Employee Platform
 
-## 📌 Overview
+## 1. Overview
 
-**AI Employee** is an **AI-powered Telegram bot platform**, not a single-purpose chatbot. It combines a **.NET** host (Clean Architecture), a **Python** AI microservice, and the **Telegram Bot API** to run conversations, judgments, user intelligence, automation, and lead capture in one extensible system.
+**AI Employee** is a **channel-agnostic AI bot platform** built on **Clean Architecture** and **domain-driven design**. It hosts configurable bots that converse across one or more messaging channels, persist state in a relational database, and call a separate **Python HTTP service** for LLM inference.
 
-**What it does**
+**Key idea:** Business rules, orchestration, and **prompt construction** live in **.NET**. The Python service is **execution-only**: it receives prepared prompts (or compact payloads) and returns structured results. Channels are pluggable via **adapters** (inbound) and **message senders** (outbound).
 
-- Accepts Telegram updates via webhook, persists conversation context (in-memory for the MVP), maintains per-user profiles, and optionally calls an LLM for judgment and lead classification.
+**Why this exists:** To **decouple AI and product logic from any single messaging provider**, so the same core can be **reused across platforms** and channels without **vendor lock-in**. Channel details stay at the edges; the center stays stable, testable, and configuration-driven.
 
-**Why it exists**
+**Capabilities:**
 
-- To experiment with **structured AI workflows** (judge, classify) behind a real-time channel (Telegram), with clear boundaries between domain rules, application orchestration, and infrastructure.
-
-**Key idea**
-
-- **AI is a tool** invoked through well-defined ports (`IAiClient`), while **business rules** (profiling, automation guards, lead heuristics) live in the domain and application layers. Telegram is one delivery channel; the same core could support other surfaces later.
-
----
-
-## 🧠 Features
-
-### 🤖 AI Judge
-
-- **`/judge`** (supports `/judge@BotName` in groups) loads recent messages from the chat’s conversation, builds a labeled transcript, and asks the AI for a structured decision (**winner + reason**).
-- Normal messages **do not** trigger the judge; only the command does, so groups are not spammed on every line.
-
-### 💬 Conversation Tracking
-
-- Messages are stored **per Telegram chat** (`conversationId` ← chat id).
-- Each message carries **user id**, optional **username**, **first/last name** (when Telegram sends them), and **text**, so prompts can show human-readable speakers.
-
-### 👤 User Profiling
-
-- Per-user **message counts**, **engagement score**, and **tags**, including: `new`, `active`, `inactive`, `high_engagement`, plus automation markers (`inactive_notified`, `high_engagement_notified`) and `hot_lead` when applicable.
-- Profile is updated on **every handled message** before downstream flows run.
-
-### ⚙️ Automation Engine
-
-- **Rule-based** actions derived from tags (implemented in `AutomationService`).
-- Examples:
-  - **Inactive** → optional **reactivation** Telegram message (fired once per user while inactive, via `inactive_notified`).
-  - **High engagement** → **admin notification** (log / hook; once per marker via `high_engagement_notified`).
-
-### 💰 Lead Engine (AI-based)
-
-- **Onboarding-style capture**: after enough messages from the same user, the **last two** user lines are treated as **goal** and **experience** (configurable flow in code).
-- A **Lead** is created **once per user** (guarded by existing leads), then **`LeadClassificationService`** builds a prompt and calls **`IAiClient.ClassifyLeadAsync`**.
-- **High potential** leads can receive the **`hot_lead`** tag and a short confirmation in chat.
+- Multi-step **conversation** and **user** state with tagging and automation hooks  
+- **Judge** workflow: structured winner/reason from conversation context  
+- **Lead capture** and **AI classification** (user type, intent, potential)  
+- **Data-driven bot configuration** (persona, behavior, language, prompt templates) resolved per **channel** and **integration** identity  
 
 ---
 
-## 🏗 Architecture
-
-The .NET solution follows **Clean Architecture**:
+## 2. Architecture Overview
 
 | Layer | Responsibility |
 |--------|----------------|
-| **Domain** | Pure **entities** (`User`, `Conversation`, `Message`, `Lead`, `JudgmentResult`, …) — no frameworks, no infrastructure. |
-| **Application** | **Use cases** (`JudgeUseCase`), **ports** (`IAiClient`, repository interfaces), **DTOs**, and **services** (`AutomationService`, `LeadClassificationService`). |
-| **Infrastructure** | **Adapters**: HTTP AI client, in-memory repositories, Telegram client, settings binding. |
-| **API** | **Composition root** (`Program.cs`), **controllers**, and Telegram-specific **request models**. |
+| **API** | HTTP endpoints, composition root (`Program.cs`), DI registration. Parses raw HTTP bodies and delegates to the **incoming message pipeline**. |
+| **Application** | Use cases (`JudgeUseCase`, …), **`IncomingMessageHandler`** orchestration, **`IBotResolver`**, messaging abstractions (`IncomingMessage`, `IChannelAdapter`, `IOutgoingMessageClient`, `IChannelMessageSender`), **`PromptBuilder`**, application services (`AutomationService`, `LeadClassificationService`), repository **interfaces**. |
+| **Domain** | Entities and value objects: users, conversations, messages, leads, judgments, and **bot configuration** aggregates (`Bot`, `Persona`, `Behavior`, …). No EF, HTTP, or channel SDKs. |
+| **Infrastructure** | **EF Core** persistence, migrations, repository implementations, **`BotResolver`** implementation, channel **adapters** and **senders**, AI HTTP client, external API clients. |
 
-**AI service (Python)**
+**Component diagram (parallel concerns):**
 
-- **FastAPI** app (`ai-service/`) exposes HTTP endpoints used by `AiClient` (e.g. judge, and lead classification when configured). The LLM is reached through **Ollama** (local or cloud model via `OLLAMA_MODEL` / `OLLAMA_BASE_URL`).
-
-**Telegram**
-
-- Webhook hits **`POST /api/telegram/webhook`** (`TelegramWebhookController`). A simpler test route exists under **`TelegramController`** for manual JSON posts.
-
----
-
-## 🔄 How It Works
-
-1. **Telegram** delivers an update to the .NET API webhook.
-2. The API **loads or creates** a `User`, applies **profile** fields, **`RegisterMessage()`** (engagement + tags), and **saves** the user.
-3. **First message** (non-`/judge`): optional **onboarding** prompt (“what is your goal?”) and early return.
-4. **`/judge`**: load conversation → build prompt → **`JudgeUseCase`** → **`IAiClient`** → reply in Telegram.
-5. **Otherwise**: append **`Message`** to **`Conversation`** and save.
-6. **Lead path** (when eligible and no lead yet): build answers from last user lines → **classify** via AI → save **Lead** → optional **`hot_lead`** + confirmation message.
-7. **Automation** runs **after** those state changes: **`AutomationService.Evaluate`**, side effects (e.g. Telegram / logs), then **user saved** again if tags changed.
-
----
-
-## 🧪 Tech Stack
-
-- **.NET** (C#), ASP.NET Core Web API  
-- **FastAPI** (Python) for the AI HTTP service  
-- **Ollama** for LLM inference (e.g. cloud models such as `gpt-oss:120b-cloud`, overridable via env)  
-- **Telegram Bot API** (`sendMessage`, webhooks)  
-- **In-memory** repositories (MVP) — no PostgreSQL/SQLite in the default .NET host for conversations/users/leads  
+```
+[ HTTP request ]
+       │
+       ▼
+[ API controller ] ──► [ IChannelAdapter ] ──► IncomingMessage
+                                                    │
+                                                    ▼
+                                    [ IncomingMessageHandler ]
+                                                    │
+                         ┌──────────────────────────┼──────────────────────────┐
+                         ▼                          ▼                          ▼
+                 [ IBotResolver ]          [ Repositories ]            [ JudgeUseCase / Services ]
+                         │                          │                          │
+                         ▼                          ▼                          ▼
+                 [ IBotConfiguration          [ EF Core / SQLite ]      [ IAiClient ──► Python AI ]
+                    Repository ]                                                    │
+                         │                                                            ▼
+                         └──────────────────────────────► [ IOutgoingMessageClient ] ◄── replies
+```
 
 ---
 
-## ⚠️ Current Limitations
+## 3. Core Concepts
 
-- **No durable database** for .NET-side conversation/user/lead stores (restart loses in-memory state unless you add persistence).
-- **Lead capture** is **heuristic** (message history / last lines), not a full conversational state machine.
-- **No admin dashboard** or authenticated back-office UI.
-- **Automation** is intentionally simple (tag-driven, one-shot notification tags); no rich scheduling, rate limits, or multi-channel fan-out.
+- **Bot** — Logical bot instance: links a **Persona**, **Behavior**, and **LanguageProfile**, plus channel metadata on the entity. Stored in the database.  
+- **BotIntegration** — Maps a **channel key** (string) and **external integration id** (e.g. provider token or app id) to a **Bot**. Uniqueness is enforced on `(Channel, ExternalId)`. Enables multiple channels or accounts to share or separate bot configuration.  
+
+**Persona vs Behavior vs LanguageProfile (do not conflate):**
+
+| Concept | Meaning |
+|---------|--------|
+| **Persona** | **What the bot is** for the model: AI **role and instructions**—system, judge, and lead **prompt bodies** (plus classification schema where applicable). |
+| **Behavior** | **What the bot does** in the product: **rules and mechanics**—command prefix, context limits, lead-flow indices, automation rules, thresholds. |
+| **LanguageProfile** | **How the bot speaks** to humans: **user-facing copy**—onboarding lines, error strings, judge reply templates, thanks messages, tone-related labels. |
+
+- **PromptTemplate** — Named templates (e.g. transcript **wrapper**) used when assembling judge prompts in .NET.  
+- **IncomingMessage** — Normalized inbound event: **Channel**, **ExternalUserId**, **ExternalChatId**, **Text**, optional **Metadata** (e.g. integration key, display names). All channel-specific parsing stops at the adapter; the handler only sees this model.  
 
 ---
 
-## 🔮 Future Improvements
+## 4. Message Processing Flow
 
-- **Persistent database** (and migrations) for users, conversations, leads, and judgments.
-- **Admin dashboard** (metrics, lead queue, manual overrides).
-- **Smarter onboarding** (explicit FSM or LLM-driven slot filling instead of positional heuristics).
-- **Stronger intent detection** and multilingual prompts.
-- **Background jobs / queues** for classification, notifications, and analytics at scale.
+**`IncomingMessageHandler`** is the **central orchestration layer**: after an **`IncomingMessage`** is built, **all business logic** (users, conversations, judge, leads, automation, outbound replies) **flows through it**—not through controllers or ad hoc entry points.
+
+**End-to-end pipeline (logical order):**
+
+```
+Channel (HTTP payload)
+    → IChannelAdapter
+    → IncomingMessage
+    → IncomingMessageHandler
+    → IBotResolver
+    → Use cases / services (e.g. JudgeUseCase)
+    → OutgoingMessageDispatcher
+    → IChannelMessageSender
+```
+
+1. An **HTTP webhook** (or future channel endpoint) receives a provider-specific payload.  
+2. The API invokes **`IChannelAdapter.Map(...)`**, which returns an **`IncomingMessage`** or `null` (ignored).  
+3. **`IIncomingMessageHandler.HandleAsync(IncomingMessage)`** runs **all** business orchestration: user load/save, automation, onboarding, judge command handling, conversation append, lead flow, outbound replies.  
+4. **`IBotResolver.ResolveAsync(IncomingMessage)`** reads **channel** and **integration** id from the message and loads **`JudgeBotConfiguration`** via **`IBotConfigurationRepository`** (DB, with fallback rules as implemented).  
+5. **Use cases** (e.g. **`JudgeUseCase`**) and services run with the resolved configuration; **outbound** text goes through **`IOutgoingMessageClient`** (**`OutgoingMessageDispatcher`**) to the correct **`IChannelMessageSender`**.  
+
+No controller or middleware should bypass **`IncomingMessage` → `IncomingMessageHandler`** for full bot behavior.
 
 ---
 
-## ▶️ Getting Started
+## 5. AI System
 
-### Prerequisites
+### Judge prompting modes
 
-- [.NET SDK](https://dotnet.microsoft.com/download) (project targets **.NET 10**)
-- Python **3.10+**
-- **Ollama** running and reachable (default `http://localhost:11434`), with your chosen model pulled/configured
-- A **Telegram bot token** from [@BotFather](https://t.me/BotFather)
+Two modes coexist (controlled by application configuration):
 
-### 1. Run the Python AI service
+1. **Transcript-based** — A compact **transcript** is sent to the AI service; minimal assembly in .NET beyond formatting.  
+2. **Full prompt in .NET** — **`PromptBuilder`** loads conversation from storage, applies **Behavior** (e.g. transcript rules), wraps with **DB `PromptTemplate`**, and injects into **Persona** judge text before calling the AI client.
+
+In both cases, **templates and persona copy are owned by .NET and the database**, not by the Python service.
+
+### Other AI paths
+
+- **Judge flow** — Handler builds or forwards context; **`JudgeUseCase`** persists a **Judgment** and calls **`IAiClient`** for the model response.  
+- **Lead classification** — **`LeadClassificationService`** prepares a prompt from captured answers and calls **`IAiClient.ClassifyLeadAsync`**.  
+- **Python AI service** — FastAPI app exposing HTTP endpoints consumed by **`AiClient`**. It is **execution-only**: inference (e.g. Ollama or compatible backend). It does **not** own product prompt templates or bot configuration.  
+
+---
+
+## 6. Multi-Channel Design
+
+- **`IChannelAdapter`** — Maps a raw request object to **`IncomingMessage?`**. One implementation per inbound channel format.  
+- **`IChannelMessageSender`** — Sends a message for **one** channel type: `Channel` property + `SendAsync(externalChatId, text)`. No cross-channel branching inside senders.  
+- **`IOutgoingMessageClient`** — Application-facing port: `SendMessageAsync(channel, externalChatId, text)`.  
+- **`OutgoingMessageDispatcher`** — Resolves the sender by **channel** string and delegates; unknown channels are logged and skipped (no throw).  
+
+**To add a new channel:**
+
+1. Implement **`IChannelAdapter`** for that provider’s webhook or event shape.  
+2. Implement **`IChannelMessageSender`** for that provider’s outbound API.  
+3. Register both in **DI** (API composition root).  
+4. Add **`BotIntegration`** rows so `(channel, externalId)` resolves to the intended **Bot**.  
+
+**No changes are required in the Application or Domain layers** for a new channel—only Infrastructure (adapter, sender, optional settings) and composition/DI, plus data.
+
+---
+
+## 7. Persistence & Database
+
+- **EF Core** with **SQLite** by default (`ConnectionStrings:DefaultConnection`, e.g. `aiemployee.db`).  
+- **Migrations** live under **`Infrastructure/Persistence/Migrations`**.  
+
+**Primary persisted entities:**
+
+| Area | Tables / entities |
+|------|-------------------|
+| Messaging state | **User**, **Conversation**, **Message** |
+| Leads & AI output | **Lead**, **Judgment** |
+| Bot configuration | **Bot**, **BotIntegration**, **Persona**, **Behavior**, **LanguageProfile**, **PromptTemplate** |
+
+---
+
+## 8. Bot Configuration System
+
+- Bots and related rows are **defined in the database** and loaded with **no hardcoded persona text** in the handler.  
+- **`BotIntegration`** ties an external integration identity (stored as **ExternalId**) and **Channel** string to a **Bot**. Resolution uses **`IBotConfigurationRepository.GetByIntegrationAsync(channel, externalId)`** with documented fallback (e.g. default bot when no row matches).  
+- **`IBotResolver`** encapsulates reading **integration** id from **`IncomingMessage.Metadata`** and invoking the repository—keeping orchestration free of repository details.  
+- **`BotConfigurationSeeder`** uses **`JudgeBotDefaults`** (domain static factory methods) to insert the default **Judge** bot graph and, when settings provide an integration token, a matching **`BotIntegration`** row—**idempotent** where designed.  
+
+---
+
+## 9. Running the Project
+
+**Requirements**
+
+- [.NET SDK](https://dotnet.microsoft.com/download) matching the solution (e.g. **.NET 10**)  
+- **EF Core tools** (optional but recommended for manual migrations): `dotnet tool install --global dotnet-ef` or use the project-local tool manifest if present  
+- Python **3.10+** for `ai-service`  
+- **Ollama** (or compatible API) reachable from the Python service  
+- A reachable **HTTPS URL** for production webhooks (provider-dependent)  
+
+**1. AI service**
 
 ```bash
 cd ai-service
@@ -129,62 +174,90 @@ pip install -r requirements.txt
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Set env as needed, e.g. `OLLAMA_MODEL`, `OLLAMA_BASE_URL`, `OLLAMA_TIMEOUT_SECONDS`, and (if used) `DATABASE_URL` for the Python-side judgment history.
+Configure model and base URL via environment variables as documented in `ai-service` (e.g. `OLLAMA_MODEL`, `OLLAMA_BASE_URL`).
 
-### 2. Run the .NET API
+**2. Migrations (before or alongside first API start)**
+
+Apply schema **before** relying on the API in production or CI—for example:
+
+```bash
+dotnet ef database update --project src/AiEmployee.Infrastructure --startup-project src/AiEmployee.Api
+```
+
+The API also runs **`MigrateAsync`** on **startup**, so local development can rely on automatic migration application. Use explicit updates when your deployment policy requires migrations separate from process start.
+
+**3. .NET API**
 
 ```bash
 dotnet run --project src/AiEmployee.Api
 ```
 
-Configure **`Telegram:BotToken`** in `appsettings.json` (prefer **User Secrets** or env in production). Ensure the API URL you expose matches your **webhook** and firewall rules.
+**4. Database seeding**
 
-### 3. Point Telegram at your webhook
+**Default bot configuration is seeded automatically on startup** (after migrations) when applicable—see **`BotConfigurationSeeder`**. Ensure the host can write to the configured SQLite path (or your overridden connection string).
 
-Register the webhook with Telegram (HTTPS required in production), for example:
+**5. Webhook**
 
-`https://<your-host>/api/telegram/webhook`
+Point your messaging provider’s webhook URL at the deployed API route wired to your **`IChannelAdapter`**. Use the provider’s API to set and verify the webhook and TLS requirements.
 
-Use `getMe` and `setWebhook` via Telegram’s HTTP API to verify the bot and URL.
+**6. Configuration**
 
-### 4. Try it in a group or DM
+- Connection string under **`ConnectionStrings`**  
+- AI options under **`Ai`** (e.g. full judge prompt flag)  
+- Channel credentials under the appropriate settings section (bound in **`Program.cs`**)  
 
-- Send normal messages → they are **stored**; the bot stays **silent** until onboarding/judge/automation/lead rules apply.
-- Send **`/judge`** (or `/judge@YourBot`) → the bot replies with an **AI judgment** when conversation history exists.
-
----
-
-## 🧩 Project Structure
-
-```
-src/
-  AiEmployee.Domain/        # Entities only — no external deps
-  AiEmployee.Application/   # Interfaces, DTOs, use cases, app services
-  AiEmployee.Infrastructure/# AiClient, Telegram, in-memory repos
-  AiEmployee.Api/           # Program.cs, controllers, API models
-
-ai-service/                 # FastAPI + Ollama client for LLM endpoints
-
-tests/                      # Unit & integration tests
-```
+Prefer **environment variables** or **user secrets** for non-local environments; override `appsettings` with standard ASP.NET Core configuration precedence.
 
 ---
 
-## 💡 Philosophy
+## 10. Development Guidelines
 
-- **Start with an MVP**: in-memory stores and simple heuristics prove the flow before hardening operations.
-- **Clean Architecture first**: keep **domain pure**, depend inward, and plug in AI/Telegram via interfaces.
-- **AI as a capability**: prompts and HTTP calls stay at the edges; core policies remain testable C#.
-- **Iterate safely**: small, reviewable changes over big rewrites.
-
----
-
-## 🧑‍💻 Contributing
-
-- Respect **layer boundaries** (Domain ← Application ← Infrastructure; API wires implementations).
-- Keep the **domain** free of EF, HTTP, and Telegram SDKs.
-- Prefer **small, focused PRs** with clear behavior and updated tests when behavior changes.
+- **No Infrastructure dependencies in Application**—reference **interfaces** and **Domain** only; implementations live in Infrastructure.  
+- **All inbound bot flows must go through `IncomingMessageHandler`** after normalization—no parallel “shortcut” controllers for the same behavior.  
+- **No channel-specific logic outside Infrastructure** (adapters, senders, vendor clients). Application uses **`message.Channel`** as an opaque string.  
+- **Bot behavior must be data-driven**—prefer DB-backed Persona, Behavior, LanguageProfile, and templates over hardcoding in handlers or use cases.  
+- Add **channels** by introducing **adapters** and **senders**, then registering them in DI—not by branching on channel names inside the handler.  
+- **Domain** stays free of EF attributes, HTTP clients, and vendor SDKs.  
+- **Prompt and template** changes belong in **data** or **.NET** (`PromptBuilder`, templates)—not in the Python service as the source of truth.  
+- Keep **repository access** for bot configuration behind **`IBotResolver`** / **`IBotConfigurationRepository`** implementations.  
 
 ---
 
-*Built as an extensible foundation for AI-assisted collaboration over Telegram—not a toy echo bot.*
+## 11. Future Extensions
+
+- Additional **channels** (e.g. web chat, mobile push) via new adapters and senders  
+- **Admin UI** or **bot builder** for editing personas, behaviors, and templates without deployments  
+- Richer **AI** features: memory, RAG, tool calling, multi-model routing  
+- **Observability**: structured logging, metrics, tracing across .NET and Python  
+- **Horizontal scale**: outbox pattern, queues, and idempotent webhook processing  
+
+---
+
+## 12. Design Principles
+
+- **Channel-agnostic core** — The center speaks **`IncomingMessage`** and string **channels**, not vendor APIs.  
+- **Data-driven behavior** — Persona, behavior, language, and templates are persisted and versionable, not buried in code.  
+- **Clean Architecture separation** — Dependencies point inward; Infrastructure is replaceable.  
+- **AI at the edges** — Models execute behind **`IAiClient`**; policy and prompts stay in .NET and the database.  
+- **Extensible pipeline** — New channels and integrations plug in at the edges **without changing** the core **`IncomingMessage` → handler** flow.  
+- **Application purity** — The Application layer depends on **ports and domain only**; it has **no channel-specific types** or vendor SDKs.  
+
+---
+
+## 13. Single Source of Truth
+
+Bot configuration is **fully data-driven**: the **database** is the **single source of truth** for bots, integrations, personas, behaviors, language profiles, and prompt templates. **Code orchestrates execution**—loading configuration, applying rules, and calling AI—but **does not duplicate** long-lived bot definition as hardcoded defaults in handlers (aside from idempotent **seeding** for first-run setup).
+
+---
+
+## 14. Failure Handling
+
+The system favors **graceful degradation** where practical:
+
+- **Missing or unmatched integration** — Resolution **falls back** to the **default bot** (see repository fallback behavior) instead of failing the request.  
+- **AI / service failure** — Users receive a **generic error message** from configuration; the host avoids surfacing raw provider errors in chat.  
+- **Unknown outbound channel** — **`OutgoingMessageDispatcher`** **logs** and **skips** sends when no **`IChannelMessageSender`** is registered for the channel (no throw).  
+
+---
+
+*AI Employee is designed as a maintainable core for multi-channel, configuration-driven AI assistants—not a single-channel demo.*
