@@ -1,25 +1,26 @@
+using AiEmployee.Domain.BotConfiguration;
 using AiEmployee.Domain.Entities;
 
 namespace AiEmployee.Application.Services;
 
 public sealed class AutomationService
 {
-    public IEnumerable<string> Evaluate(User user)
+    public IEnumerable<AutomationActionKind> Evaluate(User user, IReadOnlyList<AutomationRule> rules)
     {
-        var actions = new List<string>();
+        var actions = new List<AutomationActionKind>();
 
-        // Rule 1: inactive user (once per condition)
-        if (user.Tags.Contains("inactive") && !user.Tags.Contains("inactive_notified"))
+        foreach (var rule in rules)
         {
-            actions.Add("send_reactivation_message");
-            user.Tags.Add("inactive_notified");
-        }
+            if (!user.Tags.Contains(rule.TriggerTag))
+                continue;
 
-        // Rule 2: high engagement (once per condition)
-        if (user.Tags.Contains("high_engagement") && !user.Tags.Contains("high_engagement_notified"))
-        {
-            actions.Add("notify_admin_high_engagement");
-            user.Tags.Add("high_engagement_notified");
+            if (rule.SuppressIfTagPresent is not null && user.Tags.Contains(rule.SuppressIfTagPresent))
+                continue;
+
+            if (rule.MarkTagOnFire is not null)
+                user.Tags.Add(rule.MarkTagOnFire);
+
+            actions.Add(rule.Action);
         }
 
         return actions;

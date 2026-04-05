@@ -37,7 +37,6 @@ public sealed class User
         MessagesCount++;
         LastActiveAt = DateTime.UtcNow;
         RecalculateEngagement();
-        UpdateTags();
     }
 
     public void RecalculateEngagement()
@@ -55,33 +54,6 @@ public sealed class User
 
         // simple normalization (tweak later)
         EngagementScore = Math.Min(1.0, messagesPerDay / 20.0);
-    }
-
-    public void UpdateTags()
-    {
-        var automationNotified = Tags
-            .Where(t => t is "inactive_notified" or "high_engagement_notified")
-            .Distinct()
-            .ToList();
-
-        Tags.Clear();
-
-        var now = DateTime.UtcNow;
-
-        if ((now - JoinedAt).TotalHours < 48)
-            Tags.Add("new");
-
-        if (MessagesCount >= 10)
-            Tags.Add("active");
-
-        if ((now - LastActiveAt).TotalHours > 72)
-            Tags.Add("inactive");
-
-        if (EngagementScore > 0.7)
-            Tags.Add("high_engagement");
-
-        foreach (var t in automationNotified)
-            Tags.Add(t);
     }
 
     public void UpdateProfile(string? username, string? firstName, string? lastName)

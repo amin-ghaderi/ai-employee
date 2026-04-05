@@ -173,7 +173,16 @@ Return JSON:
                     action: AutomationActionKind.NotifyAdminHighEngagement,
                     suppressIfTagPresent: "high_engagement_notified",
                     markTagOnFire: "high_engagement_notified"),
-            });
+            },
+            engagementRules: new EngagementRules(
+                newUserWindowHours: 48,
+                activeMessageThreshold: 10,
+                inactiveHoursThreshold: 72,
+                highEngagementScoreThreshold: 0.7,
+                engagementNormalizationFactor: 20,
+                stickyTags: new[] { "inactive_notified", "high_engagement_notified" }),
+            hotLeadPotentialValue: "high",
+            hotLeadTag: "hot_lead");
 
     public static LanguageProfile CreateLanguageProfile() =>
         new(
