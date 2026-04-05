@@ -1,3 +1,4 @@
+using AiEmployee.Application.Admin;
 using AiEmployee.Application.BotConfig;
 using AiEmployee.Application.Interfaces;
 using AiEmployee.Application.Messaging;
@@ -10,6 +11,7 @@ using AiEmployee.Infrastructure.BotConfig;
 using AiEmployee.Infrastructure.Messaging;
 using AiEmployee.Infrastructure.Persistence;
 using AiEmployee.Infrastructure.Repositories;
+using AiEmployee.Api.Middleware;
 using AiEmployee.Infrastructure.Telegram;
 using Microsoft.EntityFrameworkCore;
 
@@ -21,6 +23,15 @@ builder.Services.Configure<AiOptions>(
     builder.Configuration.GetSection(AiOptions.SectionName));
 
 builder.Services.AddControllers();
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.WithOrigins("http://localhost:5173")
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
 builder.Services.AddHttpClient<IAiClient, AiClient>(client =>
 {
     client.Timeout = TimeSpan.FromMinutes(5);
@@ -33,6 +44,9 @@ builder.Services.AddScoped<IUserRepository, EfUserRepository>();
 builder.Services.AddScoped<ILeadRepository, EfLeadRepository>();
 builder.Services.AddScoped<IJudgmentRepository, EfJudgmentRepository>();
 builder.Services.AddScoped<IBotConfigurationRepository, EfBotConfigurationRepository>();
+builder.Services.AddScoped<IBotConfigurationCommand, EfBotConfigurationCommand>();
+builder.Services.AddScoped<IAdminConfigService, AdminConfigService>();
+builder.Services.AddScoped<IAdminTestService, AdminTestService>();
 builder.Services.AddScoped<IBotResolver, BotResolver>();
 builder.Services.AddScoped<IChannelAdapter, TelegramChannelAdapter>();
 builder.Services.AddScoped<IChannelMessageSender, TelegramMessageSender>();
@@ -56,6 +70,8 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.UseRouting();
+app.UseCors();
+app.UseMiddleware<AdminAuthMiddleware>();
 app.MapControllers();
 
 app.Run();
