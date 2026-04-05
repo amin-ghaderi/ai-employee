@@ -22,4 +22,15 @@ public sealed class Persona
         Prompts = prompts;
         ClassificationSchema = classificationSchema;
     }
+
+    public void UpdateJudgeAndLeadPrompts(string judgePrompt, string leadPrompt)
+    {
+        if (string.IsNullOrWhiteSpace(judgePrompt))
+            throw new ArgumentException("Judge prompt cannot be null or whitespace.", nameof(judgePrompt));
+
+        if (string.IsNullOrWhiteSpace(leadPrompt))
+            throw new ArgumentException("Lead prompt cannot be null or whitespace.", nameof(leadPrompt));
+
+        Prompts = new PromptSections(Prompts.System, judgePrompt, leadPrompt);
+    }
 }

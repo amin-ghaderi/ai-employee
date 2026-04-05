@@ -4,6 +4,7 @@ using AiEmployee.Application.Interfaces;
 using AiEmployee.Application.Options;
 using AiEmployee.Application.Prompting;
 using AiEmployee.Domain.Entities;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace AiEmployee.Application.UseCases;
@@ -15,19 +16,22 @@ public class JudgeUseCase
     private readonly IOptions<AiOptions> _aiOptions;
     private readonly IConversationRepository _conversationRepository;
     private readonly PromptBuilder _promptBuilder;
+    private readonly ILogger<JudgeUseCase> _logger;
 
     public JudgeUseCase(
         IAiClient aiClient,
         IJudgmentRepository judgmentRepository,
         IOptions<AiOptions> aiOptions,
         IConversationRepository conversationRepository,
-        PromptBuilder promptBuilder)
+        PromptBuilder promptBuilder,
+        ILogger<JudgeUseCase> logger)
     {
         _aiClient = aiClient;
         _judgmentRepository = judgmentRepository;
         _aiOptions = aiOptions;
         _conversationRepository = conversationRepository;
         _promptBuilder = promptBuilder;
+        _logger = logger;
     }
 
     /// <summary>
@@ -42,6 +46,10 @@ public class JudgeUseCase
         JudgeBotConfiguration config)
     {
         JudgmentResultDto dto;
+
+        _logger.LogInformation(
+            "UseFullJudgePrompt = {value}",
+            _aiOptions.Value.UseFullJudgePrompt);
 
         if (_aiOptions.Value.UseFullJudgePrompt)
         {

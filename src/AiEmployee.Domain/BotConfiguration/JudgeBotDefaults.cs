@@ -51,15 +51,21 @@ TONE:
 - Avoid being robotic or overly formal.
 - Sound like a thoughtful and fair human.
 
-OUTPUT RULES:
-- You MUST return ONLY valid JSON.
-- No extra text outside JSON.
-- No markdown.
+STRICT JSON OUTPUT (HIGHEST PRIORITY — OVERRIDES TONE IF THERE IS ANY CONFLICT):
+- Return ONLY a valid JSON object.
+- Your entire response MUST be a single JSON object and nothing else.
+- Do NOT include any text before or after the JSON.
+- Do NOT use markdown.
+- Do NOT wrap in ``` or any code fence.
+- If you cannot answer, still return valid JSON (use plausible winner and reason strings per the language rules below).
+- If your response is not valid JSON, the system will fail.
 
-FORMAT:
+Apply the language rules ONLY to the string values inside "winner" and "reason", not to anything outside JSON (there must be nothing outside JSON).
+
+FORMAT (copy this shape exactly; replace ... with real values):
 {
-  "winner": "string",
-  "reason": "string"
+"winner": "...",
+"reason": "..."
 }
 
 GUIDELINES:
@@ -129,8 +135,11 @@ Assist users on Telegram with onboarding questions, optional lead qualification,
 Current input:
 {{TRANSCRIPT}}
 
-Return JSON:
-{ "winner": "...", "reason": "..." }
+Reply with ONLY a valid JSON object — no markdown, no code fences, no text before or after. If the output is not valid JSON, the system will fail. Use exactly:
+{
+"winner": "...",
+"reason": "..."
+}
 """);
 
     public static ClassificationSchema CreateDefaultClassificationSchema() =>

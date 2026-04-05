@@ -6,6 +6,7 @@ using AiEmployee.Application.Prompting;
 using AiEmployee.Application.UseCases;
 using AiEmployee.Domain.BotConfiguration;
 using AiEmployee.Domain.Entities;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace AiEmployee.UnitTests;
@@ -60,7 +61,8 @@ public class JudgeUseCaseTests
             fakeRepo,
             options,
             convRepo,
-            new PromptBuilder());
+            new PromptBuilder(),
+            NullLogger<JudgeUseCase>.Instance);
     }
 
     private static JudgeBotConfiguration CreateDefaultConfig() =>
@@ -76,6 +78,9 @@ public class JudgeUseCaseTests
         public Task<Conversation?> GetByIdAsync(string id) => Task.FromResult<Conversation?>(null);
 
         public Task SaveAsync(Conversation conversation) => Task.CompletedTask;
+
+        public Task ReplaceMessagesAsync(string conversationId, IReadOnlyList<Message> messages, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 
     private sealed class FakeAiClient : IAiClient

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using AiEmployee.Application.Interfaces;
 using AiEmployee.Domain.Entities;
 using AiEmployee.Infrastructure.Persistence;
@@ -48,5 +49,45 @@ public sealed class EfConversationRepository : IConversationRepository
         }
 
         await _db.SaveChangesAsync();
+    }
+
+    public async Task ReplaceMessagesAsync(
+        string conversationId,
+        IReadOnlyList<Message> messages,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(messages);
+
+        var existing = await _db.Conversations
+            .Include(c => c.Messages)
+            .FirstOrDefaultAsync(c => c.Id == conversationId, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (existing is null)
+        {
+            var conv = new Conversation(conversationId);
+            foreach (var m in messages)
+                conv.AddMessage(m);
+
+            _db.Conversations.Add(conv);
+            await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        _db.Messages.RemoveRange(existing.Messages);
+
+        foreach (var m in messages)
+            _db.Messages.Add(m);
+
+#if DEBUG
+        foreach (var m in messages)
+        {
+            Debug.Assert(
+                _db.Entry(m).State == EntityState.Added,
+                $"New message {m.Id} must be Added before SaveChanges, was {_db.Entry(m).State}.");
+        }
+#endif
+
+        await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
     }
 }
