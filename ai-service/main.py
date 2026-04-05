@@ -10,10 +10,8 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from ai.llama_client import JudgeOutputError, LlamaClient
-from db import SessionLocal
-from history_format import build_prompt_input
-from repositories.judgment_repository import JudgmentRepository
 
+_log = logging.getLogger(__name__)
 
 app = FastAPI(title="AiEmployee AI Service")
 llama_client = LlamaClient()
@@ -22,6 +20,11 @@ llama_client = LlamaClient()
 class JudgeRequest(BaseModel):
     user_id: str
     text: str
+
+
+class JudgeFullRequest(BaseModel):
+    user_id: str
+    prompt: str
 
 
 class JudgeResponse(BaseModel):
@@ -63,31 +66,53 @@ async def classify_lead(request: LeadClassificationRequest) -> LeadClassificatio
 
 @app.post("/ai/judge", response_model=JudgeResponse)
 async def judge(request: JudgeRequest) -> JudgeResponse:
+    """
+    Deprecated: use POST /ai/judge/full with a caller-built full prompt.
+    This endpoint forwards `text` to the model as-is (no server-side template).
+    """
     try:
         if not request.user_id or not request.user_id.strip():
             raise HTTPException(status_code=400, detail="user_id is required")
 
+        if not request.text or not request.text.strip():
+            raise HTTPException(status_code=400, detail="text is required")
+
         user_id = request.user_id.strip()
+        _log.warning(
+            "DEPRECATED /ai/judge | user_id=%s | "
+            "Migrate to POST /ai/judge/full with the full judge prompt built upstream.",
+            user_id,
+        )
 
-        db = SessionLocal()
-        try:
-            repo = JudgmentRepository(db)
-            # TEMP: Memory disabled to avoid bias in judgment (no prior judgments in prompt).
-            prompt_input = build_prompt_input(request.text)
+        raw = await llama_client.run_judge_prompt(request.text)
+        data = json.loads(raw)
+        winner = data["winner"]
+        reason = data["reason"]
 
-            raw = await llama_client.ask(prompt_input)
-            data = json.loads(raw)
-            winner = data["winner"]
-            reason = data["reason"]
+        return JudgeResponse(winner=winner, reason=reason)
+    except JudgeOutputError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    except (json.JSONDecodeError, KeyError, TypeError) as e:
+        raise HTTPException(status_code=502, detail=f"Invalid judge JSON: {e}") from e
 
-            repo.save_judgment(
-                user_id=user_id,
-                input_text=request.text,
-                winner=winner,
-                reason=reason,
-            )
-        finally:
-            db.close()
+
+@app.post("/ai/judge/full", response_model=JudgeResponse)
+async def judge_full(request: JudgeFullRequest) -> JudgeResponse:
+    """Accept a complete judge prompt; execute on Ollama; return validated winner/reason."""
+    try:
+        if not request.user_id or not request.user_id.strip():
+            raise HTTPException(status_code=400, detail="user_id is required")
+
+        if not request.prompt or not request.prompt.strip():
+            raise HTTPException(status_code=400, detail="prompt is required")
+
+        user_id = request.user_id.strip()
+        _log.info("judge_full | user_id=%s", user_id)
+
+        raw = await llama_client.run_judge_prompt(request.prompt)
+        data = json.loads(raw)
+        winner = data["winner"]
+        reason = data["reason"]
 
         return JudgeResponse(winner=winner, reason=reason)
     except JudgeOutputError as e:

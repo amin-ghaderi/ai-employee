@@ -5,8 +5,12 @@ namespace AiEmployee.Domain.Entities;
 /// </summary>
 public sealed class Conversation
 {
-    public string Id { get; }
-    public List<Message> Messages { get; }
+    public string Id { get; private set; } = string.Empty;
+    public List<Message> Messages { get; private set; } = new();
+
+    private Conversation()
+    {
+    }
 
     public Conversation(string id)
     {
