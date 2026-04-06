@@ -1,4 +1,5 @@
 using AiEmployee.Application.Interfaces;
+using AiEmployee.Application.Personas;
 using AiEmployee.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -32,6 +33,21 @@ public sealed class EfBotConfigurationCommand : IBotConfigurationCommand
 
         if (persona is null)
             throw new KeyNotFoundException($"No persona was found for bot '{botId}'.");
+
+        PersonaRequestValidator.ValidateJudgeAndLeadForBotConfigUpdate(judgePrompt, leadPrompt);
+
+        var oldJudge = persona.Prompts.Judge;
+        var oldLead = persona.Prompts.Lead;
+
+        await PromptVersionRecorder.RecordJudgeAndLeadIfChangedAsync(
+                _db,
+                persona.Id,
+                oldJudge,
+                judgePrompt,
+                oldLead,
+                leadPrompt,
+                cancellationToken)
+            .ConfigureAwait(false);
 
         persona.UpdateJudgeAndLeadPrompts(judgePrompt, leadPrompt);
         await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

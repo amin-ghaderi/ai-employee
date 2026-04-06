@@ -1,3 +1,4 @@
+using AiEmployee.Application.Prompting;
 using AiEmployee.Domain.BotConfiguration;
 using AiEmployee.Infrastructure.Telegram;
 using Microsoft.EntityFrameworkCore;
@@ -25,6 +26,7 @@ public sealed class BotConfigurationSeeder
         if (!await _db.Bots.AnyAsync(b => b.Id == JudgeBotDefaults.BotId, cancellationToken))
         {
             var wrapperTemplate = JudgeBotDefaults.CreateJudgeTranscriptWrapperTemplate();
+            PromptTokens.ThrowIfJudgeWrapperMissingTranscriptPlaceholder(wrapperTemplate.Template);
 
             if (!await _db.Personas.AnyAsync(p => p.Id == JudgeBotDefaults.PersonaId, cancellationToken))
                 _db.Personas.Add(JudgeBotDefaults.CreatePersona());

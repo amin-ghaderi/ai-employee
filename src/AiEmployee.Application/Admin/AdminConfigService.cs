@@ -18,9 +18,9 @@ public sealed class AdminConfigService : IAdminConfigService
 
     public async Task<JudgeBotConfiguration> GetConfigAsync(Guid botId, CancellationToken cancellationToken = default)
     {
-        var config = await _repository.GetJudgeBotAsync().ConfigureAwait(false);
+        var config = await _repository.GetByBotIdAsync(botId).ConfigureAwait(false);
 
-        if (config.Bot.Id != botId)
+        if (config is null)
             throw new KeyNotFoundException($"No bot configuration was found for id '{botId}'.");
 
         return config;

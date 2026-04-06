@@ -29,4 +29,20 @@ public sealed class AdminTestController : ControllerBase
             return BadRequest();
         }
     }
+
+    [HttpPost("integration")]
+    public async Task<ActionResult<TestJudgeResponse>> TestByIntegration(
+        [FromBody] TestIntegrationJudgeRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await _adminTestService.JudgeByIntegrationAsync(request, cancellationToken);
+            return Ok(result);
+        }
+        catch (ArgumentException)
+        {
+            return BadRequest();
+        }
+    }
 }

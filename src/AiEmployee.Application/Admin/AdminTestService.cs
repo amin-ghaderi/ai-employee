@@ -37,16 +37,56 @@ public sealed class AdminTestService : IAdminTestService
         _judgeUseCase = judgeUseCase;
     }
 
-    public async Task<TestJudgeResponse> JudgeAsync(TestJudgeRequest request, CancellationToken cancellationToken = default)
+    public Task<TestJudgeResponse> JudgeAsync(TestJudgeRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        if (string.IsNullOrWhiteSpace(request.Text))
-            throw new ArgumentException("Text cannot be null or empty.", nameof(request));
+        var messages = BuildAdminTestMessages(request.Text);
 
-        var lines = request.Text.Trim().Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        // Same resolver path as Telegram when integration id is absent: falls back to default judge bot.
+        var resolveMessage = new IncomingMessage(
+            BotIntegrationChannelNames.Telegram,
+            TestUserId,
+            AdminTestConversationId,
+            "admin-test-resolve",
+            Metadata: null);
+
+        return RunJudgeAsync(messages, resolveMessage, cancellationToken);
+    }
+
+    public Task<TestJudgeResponse> JudgeByIntegrationAsync(
+        TestIntegrationJudgeRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var messages = BuildAdminTestMessages(request.Text);
+
+        var channel = request.Channel?.Trim() ?? string.Empty;
+        var externalId = request.ExternalId?.Trim() ?? string.Empty;
+        var metadata = new Dictionary<string, string>
+        {
+            [IncomingMessageMetadataKeys.IntegrationExternalId] = externalId,
+        };
+
+        var resolveMessage = new IncomingMessage(
+            channel,
+            TestUserId,
+            AdminTestConversationId,
+            "admin-test-resolve",
+            metadata);
+
+        return RunJudgeAsync(messages, resolveMessage, cancellationToken);
+    }
+
+    private static List<Message> BuildAdminTestMessages(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            throw new ArgumentException("Text cannot be null or empty.", nameof(text));
+
+        var lines = text.Trim().Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
         if (lines.Length == 0)
-            throw new ArgumentException("Text cannot be null or empty.", nameof(request));
+            throw new ArgumentException("Text cannot be null or empty.", nameof(text));
 
         var messages = new List<Message>(lines.Length);
         for (var i = 0; i < lines.Length; i++)
@@ -56,17 +96,17 @@ public sealed class AdminTestService : IAdminTestService
             messages.Add(new Message(AdminTestConversationId, userId, lines[i], firstName: firstName));
         }
 
+        return messages;
+    }
+
+    private async Task<TestJudgeResponse> RunJudgeAsync(
+        IReadOnlyList<Message> messages,
+        IncomingMessage resolveMessage,
+        CancellationToken cancellationToken)
+    {
         await _conversationRepository
             .ReplaceMessagesAsync(AdminTestConversationId, messages, cancellationToken)
             .ConfigureAwait(false);
-
-        // Same resolver path as Telegram when integration id is absent: falls back to default judge bot.
-        var resolveMessage = new IncomingMessage(
-            BotIntegrationChannelNames.Telegram,
-            TestUserId,
-            AdminTestConversationId,
-            "admin-test-resolve",
-            Metadata: null);
 
         var config = await _botResolver.ResolveAsync(resolveMessage).ConfigureAwait(false);
 
@@ -88,7 +128,7 @@ public sealed class AdminTestService : IAdminTestService
         return new TestJudgeResponse
         {
             Winner = judgment.Winner,
-            Reason = judgment.Reason
+            Reason = judgment.Reason,
         };
     }
 }

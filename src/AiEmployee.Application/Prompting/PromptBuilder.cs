@@ -1,10 +1,18 @@
 using AiEmployee.Domain.BotConfiguration;
 using AiEmployee.Domain.Entities;
+using Microsoft.Extensions.Logging;
 
 namespace AiEmployee.Application.Prompting;
 
 public sealed class PromptBuilder
 {
+    private readonly ILogger<PromptBuilder> _logger;
+
+    public PromptBuilder(ILogger<PromptBuilder> logger)
+    {
+        _logger = logger;
+    }
+
     public string BuildJudgeTranscript(Conversation conversation, Behavior behavior)
     {
         ArgumentNullException.ThrowIfNull(conversation);
@@ -79,7 +87,7 @@ public sealed class PromptBuilder
             }));
     }
 
-    public string BuildFullJudgePrompt(
+    public PromptBuildResult BuildFullJudgePrompt(
         Conversation conversation,
         Behavior behavior,
         Persona persona,
@@ -90,8 +98,54 @@ public sealed class PromptBuilder
         ArgumentNullException.ThrowIfNull(persona);
         ArgumentNullException.ThrowIfNull(wrapperTemplate);
 
+        var judgeTemplate = persona.Prompts.Judge;
+        var hasInputPlaceholder = judgeTemplate.Contains(PromptTokens.Input, StringComparison.Ordinal);
+
+        if (!wrapperTemplate.Template.Contains(PromptTokens.Transcript, StringComparison.Ordinal))
+        {
+            _logger.LogError(
+                "BuildFullJudgePrompt: Wrapper template '{WrapperName}' is missing '{Token}'. Transcript was not injected.",
+                wrapperTemplate.Name,
+                PromptTokens.Transcript);
+            throw new InvalidOperationException(PromptTokens.JudgeWrapperMissingTranscriptMessage);
+        }
+
         var transcript = BuildJudgeTranscript(conversation, behavior);
-        var wrapped = wrapperTemplate.Template.Replace(PromptTokens.Transcript, transcript, StringComparison.Ordinal);
-        return persona.Prompts.Judge.Replace(PromptTokens.Input, wrapped, StringComparison.Ordinal);
+        var wrapped = wrapperTemplate.Template.Replace(
+            PromptTokens.Transcript,
+            transcript,
+            StringComparison.Ordinal);
+
+        _logger.LogInformation(
+            "BuildFullJudgePrompt: PersonaId={PersonaId}, WrapperName={WrapperName}, JudgeHasInputPlaceholder={HasInput}, TranscriptLength={TranscriptLen}, WrappedLength={WrappedLen}",
+            persona.Id,
+            wrapperTemplate.Name,
+            hasInputPlaceholder,
+            transcript.Length,
+            wrapped.Length);
+
+        var merged = judgeTemplate.Replace(PromptTokens.Input, wrapped, StringComparison.Ordinal);
+        if (ReferenceEquals(merged, judgeTemplate))
+        {
+            _logger.LogError(
+                "BuildFullJudgePrompt: PersonaId={PersonaId} judge prompt is missing '{Token}'. Transcript was not injected.",
+                persona.Id,
+                PromptTokens.Input);
+            throw new InvalidOperationException(
+                $"Judge prompt for persona {persona.Id} is missing '{PromptTokens.Input}'. Transcript was not injected.");
+        }
+
+        var promptHash = PromptHashing.ComputeSha256(merged);
+
+        _logger.LogInformation(
+            "BuildFullJudgePrompt: PersonaId={PersonaId}, WrapperName={WrapperName}, FinalPromptLength={FinalLen}, TranscriptLength={TranscriptLen}, TranscriptEmpty={TranscriptEmpty}, PromptHash={PromptHash}",
+            persona.Id,
+            wrapperTemplate.Name,
+            merged.Length,
+            transcript.Length,
+            string.IsNullOrEmpty(transcript),
+            promptHash);
+
+        return new PromptBuildResult(merged, promptHash);
     }
 }

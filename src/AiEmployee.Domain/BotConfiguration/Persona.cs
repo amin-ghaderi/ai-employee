@@ -33,4 +33,17 @@ public sealed class Persona
 
         Prompts = new PromptSections(Prompts.System, judgePrompt, leadPrompt);
     }
+
+    public void UpdateAll(
+        string displayName,
+        string systemPrompt,
+        string judgePrompt,
+        string leadPrompt,
+        ClassificationSchema classificationSchema)
+    {
+        DisplayName = displayName;
+        UpdateJudgeAndLeadPrompts(judgePrompt, leadPrompt);
+        Prompts = new PromptSections(systemPrompt, Prompts.Judge, Prompts.Lead);
+        ClassificationSchema = classificationSchema;
+    }
 }

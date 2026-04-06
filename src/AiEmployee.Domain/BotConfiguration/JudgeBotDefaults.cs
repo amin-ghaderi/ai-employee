@@ -191,7 +191,10 @@ Reply with ONLY a valid JSON object — no markdown, no code fences, no text bef
                 engagementNormalizationFactor: 20,
                 stickyTags: new[] { "inactive_notified", "high_engagement_notified" }),
             hotLeadPotentialValue: "high",
-            hotLeadTag: "hot_lead");
+            hotLeadTag: "hot_lead",
+            enableChat: true,
+            enableLead: true,
+            enableJudge: true);
 
     public static LanguageProfile CreateLanguageProfile() =>
         new(

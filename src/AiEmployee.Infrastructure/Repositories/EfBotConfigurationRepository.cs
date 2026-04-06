@@ -1,18 +1,24 @@
 using AiEmployee.Application.BotConfig;
 using AiEmployee.Application.Interfaces;
+using AiEmployee.Application.Prompting;
 using AiEmployee.Domain.BotConfiguration;
 using AiEmployee.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace AiEmployee.Infrastructure.Repositories;
 
 public sealed class EfBotConfigurationRepository : IBotConfigurationRepository
 {
     private readonly AiEmployeeDbContext _db;
+    private readonly ILogger<EfBotConfigurationRepository> _logger;
 
-    public EfBotConfigurationRepository(AiEmployeeDbContext db)
+    public EfBotConfigurationRepository(
+        AiEmployeeDbContext db,
+        ILogger<EfBotConfigurationRepository> logger)
     {
         _db = db;
+        _logger = logger;
     }
 
     public async Task<JudgeBotConfiguration> GetJudgeBotAsync()
@@ -30,7 +36,14 @@ public sealed class EfBotConfigurationRepository : IBotConfigurationRepository
     public async Task<JudgeBotConfiguration> GetByIntegrationAsync(string channel, string externalId)
     {
         if (string.IsNullOrWhiteSpace(channel) || string.IsNullOrWhiteSpace(externalId))
+        {
+            _logger.LogWarning(
+                "Bot resolution fallback triggered. Reason: {Reason}, Channel: {Channel}, ExternalId: {ExternalId}",
+                "Missing channel or externalId",
+                channel,
+                externalId);
             return await GetJudgeBotAsync();
+        }
 
         var normalizedChannel = channel.Trim().ToLowerInvariant();
         var trimmedExternalId = externalId.Trim();
@@ -43,14 +56,40 @@ public sealed class EfBotConfigurationRepository : IBotConfigurationRepository
                 i.IsEnabled);
 
         if (integration is null)
+        {
+            _logger.LogWarning(
+                "Bot resolution fallback triggered. Reason: {Reason}, Channel: {Channel}, ExternalId: {ExternalId}",
+                "Integration not found",
+                normalizedChannel,
+                trimmedExternalId);
             return await GetJudgeBotAsync();
+        }
 
         var bot = await _db.Bots
             .AsNoTracking()
             .FirstOrDefaultAsync(b => b.Id == integration.BotId && b.IsEnabled);
 
         if (bot is null)
+        {
+            _logger.LogWarning(
+                "Bot resolution fallback triggered. Reason: {Reason}, Channel: {Channel}, ExternalId: {ExternalId}",
+                "Bot not found or disabled",
+                normalizedChannel,
+                trimmedExternalId);
             return await GetJudgeBotAsync();
+        }
+
+        return await ResolveConfigurationForBotAsync(bot);
+    }
+
+    public async Task<JudgeBotConfiguration?> GetByBotIdAsync(Guid botId)
+    {
+        var bot = await _db.Bots
+            .AsNoTracking()
+            .FirstOrDefaultAsync(b => b.Id == botId && b.IsEnabled);
+
+        if (bot is null)
+            return null;
 
         return await ResolveConfigurationForBotAsync(bot);
     }
@@ -75,6 +114,8 @@ public sealed class EfBotConfigurationRepository : IBotConfigurationRepository
 
         if (wrapperTemplate is null)
             throw new InvalidOperationException("Wrapper template not found");
+
+        PromptTokens.ThrowIfJudgeWrapperMissingTranscriptPlaceholder(wrapperTemplate.Template);
 
         return new JudgeBotConfiguration(
             bot,

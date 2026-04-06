@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api } from './api';
+import { getConfig, updateConfig } from './api/services/config.js';
 
 const BOT_ID = 'f7c3b5a0-1111-4111-8111-111111111111';
 
@@ -44,7 +44,7 @@ export default function ConfigPage() {
     setSuccess('');
     setLoading(true);
     try {
-      await api.put(`/config/${BOT_ID}`, {
+      await updateConfig(BOT_ID, {
         judgePrompt,
         leadPrompt,
       });
