@@ -22,6 +22,7 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
     private readonly IBotResolver _botResolver;
     private readonly PromptBuilder _promptBuilder;
     private readonly UserTaggingService _userTaggingService;
+    private readonly AssistantUseCase _assistantUseCase;
     private readonly ILogger<IncomingMessageHandler> _logger;
 
     public IncomingMessageHandler(
@@ -35,6 +36,7 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
         IBotResolver botResolver,
         PromptBuilder promptBuilder,
         UserTaggingService userTaggingService,
+        AssistantUseCase assistantUseCase,
         ILogger<IncomingMessageHandler> logger)
     {
         _judgeUseCase = judgeUseCase;
@@ -47,6 +49,7 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
         _botResolver = botResolver;
         _promptBuilder = promptBuilder;
         _userTaggingService = userTaggingService;
+        _assistantUseCase = assistantUseCase;
         _logger = logger;
     }
 
@@ -114,7 +117,9 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
                 await _userRepository.SaveAsync(user);
             }
 
-            if (user.MessagesCount == 1 && !isJudgeCommand)
+            if (behavior.OnboardingFirstMessageOnly
+                && user.MessagesCount == 1
+                && !isJudgeCommand)
             {
                 var onboardingConversation = await _conversationRepository.GetByIdAsync(conversationId)
                     ?? new Conversation(conversationId);
@@ -134,7 +139,9 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
             _logger.LogInformation("Incoming text: {Text}", text);
             _logger.LogInformation("Parsed command: {Command}", command);
 
-            if (isJudgeCommand)
+            var shouldRunJudge = isJudgeCommand && behavior.EnableJudge;
+
+            if (shouldRunJudge)
             {
                 Console.WriteLine("ENTERED JUDGE BLOCK");
                 var existing = await _conversationRepository.GetByIdAsync(conversationId);
@@ -200,55 +207,90 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
                 .ToList();
 
             var leadFlow = behavior.LeadFlow;
+            var answerKeys = leadFlow.AnswerKeys;
+            var n = answerKeys.Count;
 
-            if (leadFlow.FollowUpIndex is int followUpIndex && userMessages.Count == followUpIndex)
+            var existingLeads = await _leadRepository.GetByUserIdAsync(user.Id);
+
+            var leadFollowUpWouldRun = behavior.EnableLead
+                && leadFlow.FollowUpIndex is int followUpIndex
+                && userMessages.Count == followUpIndex;
+
+            var leadCaptureWouldRun = behavior.EnableLead
+                && leadFlow.CaptureIndex is int captureIndex
+                && userMessages.Count >= captureIndex
+                && !existingLeads.Any()
+                && n > 0
+                && userMessages.Count >= n;
+
+            var shouldRunLead = leadFollowUpWouldRun || leadCaptureWouldRun;
+
+            var chatEligible =
+                behavior.EnableChat
+                && !isJudgeCommand
+                && !(behavior.OnboardingFirstMessageOnly && user.MessagesCount == 1 && !isJudgeCommand);
+
+            var shouldRunChat = chatEligible && !shouldRunLead;
+
+            if (shouldRunLead)
             {
+                if (leadFlow.FollowUpIndex is int followUpIdx && userMessages.Count == followUpIdx)
+                {
+                    await _outgoingClient.SendMessageAsync(
+                        message.Channel,
+                        message.ExternalChatId,
+                        languageProfile.ExperienceFollowUpQuestion);
+                }
+
+                if (leadFlow.CaptureIndex is int captureIdx && userMessages.Count >= captureIdx)
+                {
+                    if (!existingLeads.Any())
+                    {
+                        if (userMessages.Count >= n && n > 0)
+                        {
+                            var start = userMessages.Count - n;
+                            var lead = new Lead(user.Id);
+                            for (var i = 0; i < n; i++)
+                                lead.Answers[answerKeys[i]] = userMessages[start + i].Text;
+
+                            var (userType, intent, potential) =
+                                await _leadClassificationService.ClassifyAsync(
+                                    judgeBotConfig.Persona,
+                                    lead.Answers,
+                                    behavior.LeadFlow.AnswerKeys);
+                            lead.UserType = userType;
+                            lead.Intent = intent;
+                            lead.Potential = potential;
+
+                            await _leadRepository.SaveAsync(lead);
+
+                            if (string.Equals(
+                                    potential,
+                                    behavior.HotLeadPotentialValue,
+                                    StringComparison.OrdinalIgnoreCase))
+                            {
+                                user.Tags.Add(behavior.HotLeadTag);
+                                await _userRepository.SaveAsync(user);
+                            }
+
+                            await _outgoingClient.SendMessageAsync(
+                                message.Channel,
+                                message.ExternalChatId,
+                                languageProfile.LeadThanksMessage);
+                        }
+                    }
+                }
+            }
+            else if (shouldRunChat)
+            {
+                var response = await _assistantUseCase.Execute(
+                    messageUserId,
+                    text,
+                    judgeBotConfig);
                 await _outgoingClient.SendMessageAsync(
                     message.Channel,
                     message.ExternalChatId,
-                    languageProfile.ExperienceFollowUpQuestion);
-            }
-
-            if (leadFlow.CaptureIndex is int captureIndex && userMessages.Count >= captureIndex)
-            {
-                var existingLeads = await _leadRepository.GetByUserIdAsync(user.Id);
-                if (!existingLeads.Any())
-                {
-                    var answerKeys = leadFlow.AnswerKeys;
-                    var n = answerKeys.Count;
-                    if (userMessages.Count >= n && n > 0)
-                    {
-                        var start = userMessages.Count - n;
-                        var lead = new Lead(user.Id);
-                        for (var i = 0; i < n; i++)
-                            lead.Answers[answerKeys[i]] = userMessages[start + i].Text;
-
-                        var (userType, intent, potential) =
-                            await _leadClassificationService.ClassifyAsync(
-                                judgeBotConfig.Persona,
-                                lead.Answers,
-                                behavior.LeadFlow.AnswerKeys);
-                        lead.UserType = userType;
-                        lead.Intent = intent;
-                        lead.Potential = potential;
-
-                        await _leadRepository.SaveAsync(lead);
-
-                        if (string.Equals(
-                                potential,
-                                behavior.HotLeadPotentialValue,
-                                StringComparison.OrdinalIgnoreCase))
-                        {
-                            user.Tags.Add(behavior.HotLeadTag);
-                            await _userRepository.SaveAsync(user);
-                        }
-
-                        await _outgoingClient.SendMessageAsync(
-                            message.Channel,
-                            message.ExternalChatId,
-                            languageProfile.LeadThanksMessage);
-                    }
-                }
+                    response);
             }
 
             await RunAutomationAsync();

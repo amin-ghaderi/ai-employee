@@ -1,13 +1,11 @@
 using AiEmployee.Application.Interfaces;
+using AiEmployee.Application.Prompting;
 using AiEmployee.Domain.BotConfiguration;
 
 namespace AiEmployee.Application.Services;
 
 public sealed class LeadClassificationService
 {
-    private const string GoalPlaceholder = "{{goal}}";
-    private const string ExperiencePlaceholder = "{{experience}}";
-
     private readonly IAiClient _aiClient;
 
     public LeadClassificationService(IAiClient aiClient)
@@ -40,7 +38,7 @@ public sealed class LeadClassificationService
             : "";
 
         return persona.Prompts.Lead
-            .Replace(GoalPlaceholder, goal, StringComparison.Ordinal)
-            .Replace(ExperiencePlaceholder, experience, StringComparison.Ordinal);
+            .Replace(PromptTokens.Goal, goal, StringComparison.Ordinal)
+            .Replace(PromptTokens.Experience, experience, StringComparison.Ordinal);
     }
 }

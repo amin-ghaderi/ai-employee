@@ -106,6 +106,9 @@ internal sealed class BehaviorConfiguration : IEntityTypeConfiguration<Behavior>
         builder.Property(e => e.OnboardingFirstMessageOnly).IsRequired();
         builder.Property(e => e.HotLeadPotentialValue).IsRequired().HasMaxLength(128);
         builder.Property(e => e.HotLeadTag).IsRequired().HasMaxLength(128);
+        builder.Property(e => e.EnableChat).IsRequired().HasDefaultValue(true);
+        builder.Property(e => e.EnableLead).IsRequired().HasDefaultValue(true);
+        builder.Property(e => e.EnableJudge).IsRequired().HasDefaultValue(true);
 
         builder.OwnsOne(e => e.LeadFlow, lf =>
         {
@@ -188,5 +191,27 @@ internal sealed class PromptTemplateConfiguration : IEntityTypeConfiguration<Pro
         builder.Property(e => e.Template).IsRequired();
 
         builder.HasIndex(e => e.Name).IsUnique();
+    }
+}
+
+internal sealed class PromptVersionConfiguration : IEntityTypeConfiguration<PromptVersion>
+{
+    public void Configure(EntityTypeBuilder<PromptVersion> builder)
+    {
+        builder.ToTable("PromptVersions");
+        builder.HasKey(e => e.Id);
+
+        builder.Property(e => e.PromptType).IsRequired().HasConversion<int>();
+        builder.Property(e => e.Version).IsRequired();
+        builder.Property(e => e.Content).IsRequired();
+        builder.Property(e => e.CreatedAt).IsRequired();
+        builder.Property(e => e.CreatedBy).HasMaxLength(256);
+
+        builder.HasOne<Persona>()
+            .WithMany()
+            .HasForeignKey(e => e.PersonaId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasIndex(e => new { e.PersonaId, e.PromptType, e.Version }).IsUnique();
     }
 }

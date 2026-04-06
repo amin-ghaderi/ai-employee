@@ -61,7 +61,8 @@ public class JudgeUseCaseTests
             fakeRepo,
             options,
             convRepo,
-            new PromptBuilder(),
+            new StubPromptVersionReadRepository(),
+            new PromptBuilder(NullLogger<PromptBuilder>.Instance),
             NullLogger<JudgeUseCase>.Instance);
     }
 
@@ -72,6 +73,12 @@ public class JudgeUseCaseTests
             JudgeBotDefaults.CreateBehavior(),
             JudgeBotDefaults.CreateLanguageProfile(),
             JudgeBotDefaults.CreateJudgeTranscriptWrapperTemplate());
+
+    private sealed class StubPromptVersionReadRepository : IPromptVersionReadRepository
+    {
+        public Task<int> GetMaxVersionAsync(Guid personaId, PromptType promptType, CancellationToken cancellationToken = default) =>
+            Task.FromResult(0);
+    }
 
     private sealed class StubConversationRepository : IConversationRepository
     {
@@ -95,11 +102,14 @@ public class JudgeUseCaseTests
         public Task<JudgmentResultDto> JudgeAsync(string userId, string text) =>
             Task.FromResult(_dto);
 
-        public Task<JudgmentResultDto> JudgeWithFullPromptAsync(string userId, string prompt) =>
+        public Task<JudgmentResultDto> JudgeWithFullPromptAsync(string userId, string prompt, string? promptHash = null) =>
             Task.FromResult(_dto);
 
         public Task<LeadClassificationDto> ClassifyLeadAsync(string prompt) =>
             Task.FromResult(new LeadClassificationDto());
+
+        public Task<string> ChatAsync(string userId, string prompt) =>
+            Task.FromResult(string.Empty);
     }
 
     private sealed class FakeJudgmentRepository : IJudgmentRepository

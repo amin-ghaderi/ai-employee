@@ -40,4 +40,29 @@ public sealed class Bot
         CreatedAt = createdAt;
         UpdatedAt = updatedAt;
     }
+
+    public void Update(string name, bool isEnabled, DateTimeOffset updatedAt)
+    {
+        Name = name;
+        IsEnabled = isEnabled;
+        UpdatedAt = updatedAt;
+    }
+
+    public void Assign(
+        Guid personaId,
+        Guid behaviorId,
+        Guid languageProfileId,
+        DateTimeOffset updatedAt)
+    {
+        PersonaId = personaId;
+        BehaviorId = behaviorId;
+        LanguageProfileId = languageProfileId;
+        UpdatedAt = updatedAt;
+    }
+
+    public void SetEnabled(bool isEnabled, DateTimeOffset updatedAt)
+    {
+        IsEnabled = isEnabled;
+        UpdatedAt = updatedAt;
+    }
 }

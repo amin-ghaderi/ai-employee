@@ -23,6 +23,7 @@ public sealed class AiEmployeeDbContext : DbContext
     public DbSet<Behavior> Behaviors => Set<Behavior>();
     public DbSet<LanguageProfile> LanguageProfiles => Set<LanguageProfile>();
     public DbSet<PromptTemplate> PromptTemplates => Set<PromptTemplate>();
+    public DbSet<PromptVersion> PromptVersions => Set<PromptVersion>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -1,4 +1,5 @@
 using AiEmployee.Application.Admin;
+using AiEmployee.Application.Personas;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AiEmployee.Api.Controllers;
@@ -46,6 +47,10 @@ public sealed class AdminController : ControllerBase
         catch (ArgumentException)
         {
             return BadRequest();
+        }
+        catch (PersonaValidationException ex)
+        {
+            return BadRequest(new { errors = ex.Errors });
         }
     }
 }

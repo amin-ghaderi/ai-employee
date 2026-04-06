@@ -28,6 +28,21 @@ namespace AiEmployee.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT")
                         .HasColumnName("AutomationRulesJson");
 
+                    b.Property<bool>("EnableChat")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("EnableJudge")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("EnableLead")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(true);
+
                     b.Property<bool>("ExcludeCommandsFromJudgeContext")
                         .HasColumnType("INTEGER");
 
@@ -238,6 +253,40 @@ namespace AiEmployee.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("PromptTemplates", (string)null);
+                });
+
+            modelBuilder.Entity("AiEmployee.Domain.BotConfiguration.PromptVersion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("PersonaId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("PromptType")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PersonaId", "PromptType", "Version")
+                        .IsUnique();
+
+                    b.ToTable("PromptVersions", (string)null);
                 });
 
             modelBuilder.Entity("AiEmployee.Domain.Entities.Conversation", b =>
@@ -529,6 +578,15 @@ namespace AiEmployee.Infrastructure.Persistence.Migrations
                         });
 
                     b.Navigation("Prompts")
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AiEmployee.Domain.BotConfiguration.PromptVersion", b =>
+                {
+                    b.HasOne("AiEmployee.Domain.BotConfiguration.Persona", null)
+                        .WithMany()
+                        .HasForeignKey("PersonaId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 

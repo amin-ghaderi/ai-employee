@@ -20,4 +20,17 @@ public sealed class BotIntegration
         ExternalId = externalId;
         IsEnabled = isEnabled;
     }
+
+    public void Update(Guid botId, string channel, string externalId, bool isEnabled)
+    {
+        BotId = botId;
+        Channel = channel;
+        ExternalId = externalId;
+        IsEnabled = isEnabled;
+    }
+
+    public void SetEnabled(bool isEnabled)
+    {
+        IsEnabled = isEnabled;
+    }
 }

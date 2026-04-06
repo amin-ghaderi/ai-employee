@@ -3,6 +3,7 @@ using AiEmployee.Application.Dtos;
 using AiEmployee.Application.Interfaces;
 using AiEmployee.Application.Options;
 using AiEmployee.Application.Prompting;
+using AiEmployee.Domain.BotConfiguration;
 using AiEmployee.Domain.Entities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -15,6 +16,7 @@ public class JudgeUseCase
     private readonly IJudgmentRepository _judgmentRepository;
     private readonly IOptions<AiOptions> _aiOptions;
     private readonly IConversationRepository _conversationRepository;
+    private readonly IPromptVersionReadRepository _promptVersionRead;
     private readonly PromptBuilder _promptBuilder;
     private readonly ILogger<JudgeUseCase> _logger;
 
@@ -23,6 +25,7 @@ public class JudgeUseCase
         IJudgmentRepository judgmentRepository,
         IOptions<AiOptions> aiOptions,
         IConversationRepository conversationRepository,
+        IPromptVersionReadRepository promptVersionRead,
         PromptBuilder promptBuilder,
         ILogger<JudgeUseCase> logger)
     {
@@ -30,6 +33,7 @@ public class JudgeUseCase
         _judgmentRepository = judgmentRepository;
         _aiOptions = aiOptions;
         _conversationRepository = conversationRepository;
+        _promptVersionRead = promptVersionRead;
         _promptBuilder = promptBuilder;
         _logger = logger;
     }
@@ -43,33 +47,96 @@ public class JudgeUseCase
         string conversationId,
         string userId,
         string text,
-        JudgeBotConfiguration config)
+        JudgeBotConfiguration config,
+        CancellationToken cancellationToken = default)
     {
         JudgmentResultDto dto;
 
-        _logger.LogInformation(
-            "UseFullJudgePrompt = {value}",
-            _aiOptions.Value.UseFullJudgePrompt);
+        var botId = config.Bot.Id;
+        var personaId = config.Persona.Id;
+        var maxArchivedJudgeVersion = await _promptVersionRead
+            .GetMaxVersionAsync(personaId, PromptType.Judge, cancellationToken)
+            .ConfigureAwait(false);
+        var judgePromptCurrentVersion = maxArchivedJudgeVersion + 1;
 
-        if (_aiOptions.Value.UseFullJudgePrompt)
+        var useFull = _aiOptions.Value.UseFullJudgePrompt;
+        _logger.LogInformation(
+            "Judge: UseFullJudgePrompt={UseFullJudgePrompt}, ConversationId={ConversationId}, BotId={BotId}, PersonaId={PersonaId}, PromptVersion={PromptVersion}",
+            useFull,
+            conversationId,
+            botId,
+            personaId,
+            judgePromptCurrentVersion);
+
+        if (useFull)
         {
             var conversation = await _conversationRepository.GetByIdAsync(conversationId);
             if (conversation is null)
             {
+                var simpleHash = PromptHashing.ComputeSha256(text);
+                _logger.LogInformation(
+                    "Judge: PathType={PathType}, ConversationId={ConversationId}, BotId={BotId}, PersonaId={PersonaId}, PromptHash={PromptHash}, PromptVersion={PromptVersion}, UseFullJudgePrompt={UseFullJudgePrompt}, PayloadChars={PayloadChars}",
+                    "simple",
+                    conversationId,
+                    botId,
+                    personaId,
+                    simpleHash,
+                    judgePromptCurrentVersion,
+                    useFull,
+                    text.Length);
+
                 dto = await _aiClient.JudgeAsync(conversationId, text);
             }
             else
             {
-                var fullPrompt = _promptBuilder.BuildFullJudgePrompt(
+                var judgeHasInput = config.Persona.Prompts.Judge.Contains(
+                    PromptTokens.Input,
+                    StringComparison.Ordinal);
+                _logger.LogInformation(
+                    "Judge full prompt path: ConversationId={ConversationId}, BotId={BotId}, PersonaId={PersonaId}, PromptVersion={PromptVersion}, JudgeHasInputPlaceholder={HasInput}",
+                    conversationId,
+                    botId,
+                    personaId,
+                    judgePromptCurrentVersion,
+                    judgeHasInput);
+
+                var built = _promptBuilder.BuildFullJudgePrompt(
                     conversation,
                     config.Behavior,
                     config.Persona,
                     config.WrapperTemplate);
-                dto = await _aiClient.JudgeWithFullPromptAsync(conversationId, fullPrompt);
+
+                _logger.LogInformation(
+                    "Judge: PathType={PathType}, ConversationId={ConversationId}, BotId={BotId}, PersonaId={PersonaId}, PromptHash={PromptHash}, PromptVersion={PromptVersion}, UseFullJudgePrompt={UseFullJudgePrompt}, FinalPromptLength={FinalPromptLength}",
+                    "full",
+                    conversationId,
+                    botId,
+                    personaId,
+                    built.PromptHash,
+                    judgePromptCurrentVersion,
+                    useFull,
+                    built.Prompt.Length);
+
+                dto = await _aiClient.JudgeWithFullPromptAsync(
+                    conversationId,
+                    built.Prompt,
+                    built.PromptHash);
             }
         }
         else
         {
+            var simpleHash = PromptHashing.ComputeSha256(text);
+            _logger.LogInformation(
+                "Judge: PathType={PathType}, ConversationId={ConversationId}, BotId={BotId}, PersonaId={PersonaId}, PromptHash={PromptHash}, PromptVersion={PromptVersion}, UseFullJudgePrompt={UseFullJudgePrompt}, PayloadChars={PayloadChars}",
+                "simple",
+                conversationId,
+                botId,
+                personaId,
+                simpleHash,
+                judgePromptCurrentVersion,
+                useFull,
+                text.Length);
+
             dto = await _aiClient.JudgeAsync(conversationId, text);
         }
 
