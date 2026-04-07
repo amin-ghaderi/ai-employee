@@ -11,6 +11,11 @@ const emptyForm = {
   potentials: '',
 };
 
+const FALLBACK_JUDGE_PROMPT =
+  'Analyze the input and return a JSON result with winner and reason. Input: {{input}}';
+const FALLBACK_LEAD_PROMPT =
+  'Classify the user based on goal and experience. Return JSON. Goal: {{goal}}, Experience: {{experience}}';
+
 function parseCommaList(value) {
   return value
     .split(',')
@@ -63,21 +68,34 @@ export default function PersonasPage() {
     const name = form.displayName.trim();
     if (!name) return 'displayName is required.';
     const system = form.system.trim();
-    const judge = form.judge.trim();
-    const lead = form.lead.trim();
     if (!system) return 'prompts.system is required.';
-    if (!judge) return 'prompts.judge is required.';
-    if (!lead) return 'prompts.lead is required.';
     return null;
   }
 
-  function buildRequestBody() {
+  function buildRequestBody(existingPersona = null) {
+    const existingJudge = existingPersona?.prompts?.judge ?? '';
+    const existingLead = existingPersona?.prompts?.lead ?? '';
+    const judgePrompt = form.judge?.trim() || existingJudge || FALLBACK_JUDGE_PROMPT;
+    const leadPrompt = form.lead?.trim() || existingLead || FALLBACK_LEAD_PROMPT;
+
+    if (!judgePrompt.includes('{{input}}')) {
+      console.warn('Persona submit warning: judge prompt missing {{input}} placeholder.');
+    }
+    if (
+      !leadPrompt.includes('{{goal}}') ||
+      !leadPrompt.includes('{{experience}}')
+    ) {
+      console.warn(
+        'Persona submit warning: lead prompt missing {{goal}} or {{experience}} placeholder.'
+      );
+    }
+
     return {
       displayName: form.displayName.trim(),
       prompts: {
         system: form.system.trim(),
-        judge: form.judge.trim(),
-        lead: form.lead.trim(),
+        judge: judgePrompt,
+        lead: leadPrompt,
       },
       classificationSchema: {
         userTypes: parseCommaList(form.userTypes),
@@ -99,7 +117,10 @@ export default function PersonasPage() {
     setSubmitError('');
     setSaving(true);
     try {
-      const body = buildRequestBody();
+      const existingPersona = editingId
+        ? personas.find((p) => String(p.id) === String(editingId)) ?? null
+        : null;
+      const body = buildRequestBody(existingPersona);
       if (editingId) {
         await PersonasApi.update(editingId, body);
       } else {
@@ -166,32 +187,6 @@ export default function PersonasPage() {
             value={form.system}
             onChange={(e) =>
               setForm((f) => ({ ...f, system: e.target.value }))
-            }
-            disabled={saving}
-          />
-        </div>
-        <div>
-          <label htmlFor="persona-prompt-judge">Judge prompt</label>
-          <textarea
-            id="persona-prompt-judge"
-            rows={6}
-            cols={80}
-            value={form.judge}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, judge: e.target.value }))
-            }
-            disabled={saving}
-          />
-        </div>
-        <div>
-          <label htmlFor="persona-prompt-lead">Lead prompt</label>
-          <textarea
-            id="persona-prompt-lead"
-            rows={6}
-            cols={80}
-            value={form.lead}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, lead: e.target.value }))
             }
             disabled={saving}
           />

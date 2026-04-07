@@ -7,26 +7,30 @@ namespace AiEmployee.Application.Services;
 public sealed class LeadClassificationService
 {
     private readonly IAiClient _aiClient;
+    private readonly BehaviorPromptMapper _behaviorPromptMapper;
 
-    public LeadClassificationService(IAiClient aiClient)
+    public LeadClassificationService(IAiClient aiClient, BehaviorPromptMapper behaviorPromptMapper)
     {
         _aiClient = aiClient;
+        _behaviorPromptMapper = behaviorPromptMapper;
     }
 
     public async Task<(string userType, string intent, string potential)> ClassifyAsync(
         Persona persona,
+        Behavior behavior,
         Dictionary<string, string> answers,
         IReadOnlyList<string> answerKeys)
     {
-        var prompt = BuildPrompt(persona, answers, answerKeys);
+        var executionContext = BuildExecutionContext(persona, behavior, answers, answerKeys);
 
-        var result = await _aiClient.ClassifyLeadAsync(prompt);
+        var result = await _aiClient.ClassifyLeadAsync(executionContext.Prompt);
 
         return (result.UserType, result.Intent, result.Potential);
     }
 
-    private static string BuildPrompt(
+    public LeadExecutionContext BuildExecutionContext(
         Persona persona,
+        Behavior behavior,
         Dictionary<string, string> answers,
         IReadOnlyList<string> answerKeys)
     {
@@ -37,8 +41,15 @@ public sealed class LeadClassificationService
             ? answers[answerKeys[1]]
             : "";
 
-        return persona.Prompts.Lead
+        var leadTemplate = _behaviorPromptMapper.BuildLeadPrompt(persona, behavior);
+
+        var prompt = leadTemplate
             .Replace(PromptTokens.Goal, goal, StringComparison.Ordinal)
             .Replace(PromptTokens.Experience, experience, StringComparison.Ordinal);
+
+        return new LeadExecutionContext
+        {
+            Prompt = prompt,
+        };
     }
 }

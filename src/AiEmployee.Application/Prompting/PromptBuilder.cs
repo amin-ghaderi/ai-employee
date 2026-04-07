@@ -1,5 +1,6 @@
 using AiEmployee.Domain.BotConfiguration;
 using AiEmployee.Domain.Entities;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging;
 
 namespace AiEmployee.Application.Prompting;
@@ -7,10 +8,15 @@ namespace AiEmployee.Application.Prompting;
 public sealed class PromptBuilder
 {
     private readonly ILogger<PromptBuilder> _logger;
+    private readonly BehaviorPromptMapper _behaviorPromptMapper;
 
-    public PromptBuilder(ILogger<PromptBuilder> logger)
+    public PromptBuilder(
+        ILogger<PromptBuilder> logger,
+        BehaviorPromptMapper? behaviorPromptMapper = null)
     {
         _logger = logger;
+        _behaviorPromptMapper = behaviorPromptMapper
+            ?? new BehaviorPromptMapper(NullLogger<BehaviorPromptMapper>.Instance);
     }
 
     public string BuildJudgeTranscript(Conversation conversation, Behavior behavior)
@@ -98,7 +104,7 @@ public sealed class PromptBuilder
         ArgumentNullException.ThrowIfNull(persona);
         ArgumentNullException.ThrowIfNull(wrapperTemplate);
 
-        var judgeTemplate = persona.Prompts.Judge;
+        var judgeTemplate = _behaviorPromptMapper.BuildJudgePrompt(persona, behavior);
         var hasInputPlaceholder = judgeTemplate.Contains(PromptTokens.Input, StringComparison.Ordinal);
 
         if (!wrapperTemplate.Template.Contains(PromptTokens.Transcript, StringComparison.Ordinal))
