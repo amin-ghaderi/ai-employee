@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
+using AiEmployee.Application.Admin;
 using AiEmployee.Application;
 using AiEmployee.Application.Dtos;
 using AiEmployee.Application.Interfaces;
@@ -59,8 +60,9 @@ public class AiClient : IAiClient
                     attempt + 1);
 
                 response.EnsureSuccessStatusCode();
-
-                var dto = await response.Content.ReadFromJsonAsync<JudgmentResultDto>();
+                var rawResponse = await response.Content.ReadAsStringAsync();
+                AiDebugContext.SetLastRawResponse(rawResponse);
+                var dto = JsonSerializer.Deserialize<JudgmentResultDto>(rawResponse);
                 if (dto is null)
                     throw new AiServiceException("AI returned empty judge response.");
 
@@ -160,8 +162,9 @@ public class AiClient : IAiClient
                     attempt + 1);
 
                 response.EnsureSuccessStatusCode();
-
-                var dto = await response.Content.ReadFromJsonAsync<JudgmentResultDto>();
+                var rawResponse = await response.Content.ReadAsStringAsync();
+                AiDebugContext.SetLastRawResponse(rawResponse);
+                var dto = JsonSerializer.Deserialize<JudgmentResultDto>(rawResponse);
                 if (dto is null)
                     throw new AiServiceException("AI returned empty judge response.");
 
@@ -244,8 +247,9 @@ public class AiClient : IAiClient
                     new { prompt });
 
                 response.EnsureSuccessStatusCode();
-
-                var result = await response.Content.ReadFromJsonAsync<LeadClassificationDto>();
+                var rawResponse = await response.Content.ReadAsStringAsync();
+                AiDebugContext.SetLastRawResponse(rawResponse);
+                var result = JsonSerializer.Deserialize<LeadClassificationDto>(rawResponse);
 
                 if (result is null)
                     throw new AiServiceException("AI returned null classification response.");

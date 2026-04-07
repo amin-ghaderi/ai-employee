@@ -256,6 +256,7 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
                             var (userType, intent, potential) =
                                 await _leadClassificationService.ClassifyAsync(
                                     judgeBotConfig.Persona,
+                                    behavior,
                                     lead.Answers,
                                     behavior.LeadFlow.AnswerKeys);
                             lead.UserType = userType;

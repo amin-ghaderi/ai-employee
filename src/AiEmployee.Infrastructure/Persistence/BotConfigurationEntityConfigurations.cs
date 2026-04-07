@@ -109,6 +109,10 @@ internal sealed class BehaviorConfiguration : IEntityTypeConfiguration<Behavior>
         builder.Property(e => e.EnableChat).IsRequired().HasDefaultValue(true);
         builder.Property(e => e.EnableLead).IsRequired().HasDefaultValue(true);
         builder.Property(e => e.EnableJudge).IsRequired().HasDefaultValue(true);
+        builder.Property(e => e.JudgeInstruction);
+        builder.Property(e => e.JudgeSchemaJson);
+        builder.Property(e => e.LeadInstruction);
+        builder.Property(e => e.LeadSchemaJson);
 
         builder.OwnsOne(e => e.LeadFlow, lf =>
         {

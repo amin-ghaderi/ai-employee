@@ -16,6 +16,10 @@ public sealed class Behavior
     public bool EnableChat { get; private set; }
     public bool EnableLead { get; private set; }
     public bool EnableJudge { get; private set; }
+    public string? JudgeInstruction { get; set; }
+    public string? JudgeSchemaJson { get; set; }
+    public string? LeadInstruction { get; set; }
+    public string? LeadSchemaJson { get; set; }
 
     private Behavior()
     {
@@ -81,5 +85,19 @@ public sealed class Behavior
         EnableChat = enableChat;
         EnableLead = enableLead;
         EnableJudge = enableJudge;
+    }
+
+    public object? GetJudgeSchema()
+    {
+        if (string.IsNullOrWhiteSpace(JudgeSchemaJson))
+            return null;
+        return System.Text.Json.JsonSerializer.Deserialize<object>(JudgeSchemaJson);
+    }
+
+    public object? GetLeadSchema()
+    {
+        if (string.IsNullOrWhiteSpace(LeadSchemaJson))
+            return null;
+        return System.Text.Json.JsonSerializer.Deserialize<object>(LeadSchemaJson);
     }
 }
