@@ -1,4 +1,5 @@
 using AiEmployee.Application;
+using AiEmployee.Application.Admin;
 using AiEmployee.Application.BotConfig;
 using AiEmployee.Application.Interfaces;
 using AiEmployee.Application.Prompting;
@@ -23,6 +24,8 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
     private readonly PromptBuilder _promptBuilder;
     private readonly UserTaggingService _userTaggingService;
     private readonly AssistantUseCase _assistantUseCase;
+    private readonly IFlowTracker _flowTracker;
+    private readonly RealFlowTestContext _testContext;
     private readonly ILogger<IncomingMessageHandler> _logger;
 
     public IncomingMessageHandler(
@@ -37,6 +40,8 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
         PromptBuilder promptBuilder,
         UserTaggingService userTaggingService,
         AssistantUseCase assistantUseCase,
+        IFlowTracker flowTracker,
+        RealFlowTestContext testContext,
         ILogger<IncomingMessageHandler> logger)
     {
         _judgeUseCase = judgeUseCase;
@@ -50,6 +55,8 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
         _promptBuilder = promptBuilder;
         _userTaggingService = userTaggingService;
         _assistantUseCase = assistantUseCase;
+        _flowTracker = flowTracker;
+        _testContext = testContext;
         _logger = logger;
     }
 
@@ -86,17 +93,24 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
                 user.Id,
                 user.MessagesCount);
 
-            var commandToken = text.Split(' ')[0];
-            commandToken = commandToken.Split('@')[0];
-            var isJudgeCommand = string.Equals(
-                commandToken,
-                behavior.JudgeCommandPrefix,
-                StringComparison.OrdinalIgnoreCase);
+            var tokens = text.Replace("\n", " ")
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            var commandToken = tokens
+                .Select(t => t.Split('@')[0])
+                .FirstOrDefault(t => t.StartsWith('/'));
+            var isJudgeCommand = commandToken is not null
+                && string.Equals(
+                    commandToken,
+                    behavior.JudgeCommandPrefix,
+                    StringComparison.OrdinalIgnoreCase);
             if (isJudgeCommand)
                 Console.WriteLine("JUDGE COMMAND DETECTED");
 
             async Task RunAutomationAsync()
             {
+                if (_testContext.IsActive && _testContext.DisableAutomation)
+                    return;
+
                 var actions = _automationService.Evaluate(user, behavior.AutomationRules);
                 foreach (var action in actions)
                 {
@@ -117,32 +131,20 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
                 await _userRepository.SaveAsync(user);
             }
 
-            if (behavior.OnboardingFirstMessageOnly
-                && user.MessagesCount == 1
-                && !isJudgeCommand)
-            {
-                var onboardingConversation = await _conversationRepository.GetByIdAsync(conversationId)
-                    ?? new Conversation(conversationId);
-                var onboardingMessage = new Message(conversationId, messageUserId, text, username, firstName, lastName);
-                onboardingConversation.AddMessage(onboardingMessage);
-                await _conversationRepository.SaveAsync(onboardingConversation);
-
-                await _outgoingClient.SendMessageAsync(
-                    message.Channel,
-                    message.ExternalChatId,
-                    languageProfile.OnboardingGoalQuestion);
-                return;
-            }
-
-            var command = commandToken;
-
             _logger.LogInformation("Incoming text: {Text}", text);
-            _logger.LogInformation("Parsed command: {Command}", command);
+            _logger.LogInformation("Parsed command: {Command}", commandToken);
+            _logger.LogInformation(
+                "Judge routing | isJudgeCommand={IsJudge}, EnableJudge={EnableJudge}, JudgeCommandPrefix={Prefix}, BehaviorId={BehaviorId}",
+                isJudgeCommand,
+                behavior.EnableJudge,
+                behavior.JudgeCommandPrefix,
+                behavior.Id);
 
             var shouldRunJudge = isJudgeCommand && behavior.EnableJudge;
 
             if (shouldRunJudge)
             {
+                _flowTracker.Set("judge");
                 Console.WriteLine("ENTERED JUDGE BLOCK");
                 var existing = await _conversationRepository.GetByIdAsync(conversationId);
                 if (existing is null || existing.Messages.Count == 0)
@@ -193,6 +195,23 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
                 return;
             }
 
+            if (behavior.OnboardingFirstMessageOnly
+                && user.MessagesCount == 1)
+            {
+                _flowTracker.Set("onboarding");
+                var onboardingConversation = await _conversationRepository.GetByIdAsync(conversationId)
+                    ?? new Conversation(conversationId);
+                var onboardingMessage = new Message(conversationId, messageUserId, text, username, firstName, lastName);
+                onboardingConversation.AddMessage(onboardingMessage);
+                await _conversationRepository.SaveAsync(onboardingConversation);
+
+                await _outgoingClient.SendMessageAsync(
+                    message.Channel,
+                    message.ExternalChatId,
+                    languageProfile.OnboardingGoalQuestion);
+                return;
+            }
+
             var conversation = await _conversationRepository.GetByIdAsync(conversationId)
                 ?? new Conversation(conversationId);
             var msg = new Message(conversationId, messageUserId, text, username, firstName, lastName);
@@ -234,6 +253,7 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
 
             if (shouldRunLead)
             {
+                _flowTracker.Set("lead");
                 if (leadFlow.FollowUpIndex is int followUpIdx && userMessages.Count == followUpIdx)
                 {
                     await _outgoingClient.SendMessageAsync(
@@ -284,6 +304,7 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
             }
             else if (shouldRunChat)
             {
+                _flowTracker.Set("chat");
                 var response = await _assistantUseCase.Execute(
                     messageUserId,
                     text,

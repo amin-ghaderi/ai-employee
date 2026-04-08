@@ -16,4 +16,8 @@ public sealed class BehaviorDto
     public bool EnableChat { get; set; }
     public bool EnableLead { get; set; }
     public bool EnableJudge { get; set; }
+    public string? JudgeInstruction { get; set; }
+    public string? JudgeSchemaJson { get; set; }
+    public string? LeadInstruction { get; set; }
+    public string? LeadSchemaJson { get; set; }
 }

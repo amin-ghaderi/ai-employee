@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
-import { api } from './api/client.js';
+import { useEffect, useState } from 'react';
 import { BehaviorsApi } from './api/services/behaviors.js';
 import { IntegrationsApi } from './api/services/integrations.js';
 import { PersonasApi } from './api/services/personas.js';
-import { runIntegrationJudgeTest, runJudgeTest, runLeadWithDebug } from './api/services/test.js';
+import { runJudgeWithDebug, runLeadWithDebug, runRealFlowTest } from './api/services/test.js';
 
 export default function TestPage() {
   const [mode, setMode] = useState(() => {
@@ -28,10 +27,8 @@ export default function TestPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [debugData, setDebugData] = useState(null);
-  const [debugLoading, setDebugLoading] = useState(false);
-  const [debugError, setDebugError] = useState('');
+  const [flowResult, setFlowResult] = useState(null);
   const [copied, setCopied] = useState(false);
-  const latestDebugRequest = useRef(0);
 
   useEffect(() => {
     async function load() {
@@ -68,44 +65,13 @@ export default function TestPage() {
     setWinner('');
     setReason('');
     setLeadResult(null);
+    setFlowResult(null);
     setError('');
   }, [mode]);
 
   useEffect(() => {
     localStorage.setItem('test_mode', mode);
   }, [mode]);
-
-  async function fetchDebug(channelValue, externalIdValue, transcriptText) {
-    const normalizedChannel = String(channelValue ?? '').trim();
-    const normalizedExternalId = String(externalIdValue ?? '').trim();
-    if (!normalizedChannel && !normalizedExternalId) {
-      setDebugData(null);
-      setDebugError('Missing channel or integration');
-      return;
-    }
-
-    setDebugLoading(true);
-    setDebugError('');
-    try {
-      const params = {
-        channel: normalizedChannel,
-        externalId: normalizedExternalId,
-      };
-      const t = String(transcriptText ?? '').trim();
-      if (t) params.text = t;
-
-      const response = await api.get('/debug/judge', {
-        params,
-      });
-      setDebugData(response.data || null);
-    } catch (e) {
-      console.error('Debug fetch failed', e);
-      setDebugError('Failed to load debug preview');
-      setDebugData(null);
-    } finally {
-      setDebugLoading(false);
-    }
-  }
 
   async function handleCopyPrompt() {
     if (!debugData?.prompt) return;
@@ -126,6 +92,8 @@ export default function TestPage() {
     setError('');
     setWinner('');
     setReason('');
+    setDebugData(null);
+    setFlowResult(null);
 
     if (!text.trim()) {
       setError('Text is required');
@@ -134,10 +102,10 @@ export default function TestPage() {
 
     setLoading(true);
     try {
-      await fetchDebug(channel.trim(), externalId.trim(), text);
-      const data = await runJudgeTest(text.trim());
+      const data = await runJudgeWithDebug(text.trim(), channel.trim(), externalId.trim());
       setWinner(data.winner ?? '');
       setReason(data.reason ?? '');
+      setDebugData(data.debug ?? null);
     } catch (e) {
       setError(
         e.response?.data?.title ||
@@ -154,6 +122,8 @@ export default function TestPage() {
     setError('');
     setWinner('');
     setReason('');
+    setDebugData(null);
+    setFlowResult(null);
 
     if (!text.trim()) {
       setError('Text is required');
@@ -170,14 +140,10 @@ export default function TestPage() {
 
     setLoading(true);
     try {
-      await fetchDebug(channel.trim(), externalId.trim(), text);
-      const data = await runIntegrationJudgeTest(
-        text.trim(),
-        channel.trim(),
-        externalId.trim()
-      );
+      const data = await runJudgeWithDebug(text.trim(), channel.trim(), externalId.trim());
       setWinner(data.winner ?? '');
       setReason(data.reason ?? '');
+      setDebugData(data.debug ?? null);
     } catch (e) {
       setError(
         e.response?.data?.title ||
@@ -236,6 +202,45 @@ export default function TestPage() {
     }
   }
 
+  async function runRealFlow() {
+    setError('');
+    setWinner('');
+    setReason('');
+    setDebugData(null);
+    setFlowResult(null);
+
+    if (!text.trim()) {
+      setError('Text is required');
+      return;
+    }
+    if (!channel.trim()) {
+      setError('Channel is required');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const id = Date.now();
+      const data = await runRealFlowTest({
+        text: text.trim(),
+        channel: channel.trim(),
+        externalUserId: `sim-user-${id}`,
+        externalChatId: `sim-chat-${id}`,
+        integrationExternalId: externalId.trim() || undefined,
+      });
+      setFlowResult(data);
+    } catch (e) {
+      setError(
+        e.response?.data?.title ||
+          e.response?.data?.message ||
+          e.message ||
+          'Request failed'
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div>
       <div style={{ marginBottom: 12 }}>
@@ -244,6 +249,9 @@ export default function TestPage() {
         </button>{' '}
         <button type="button" onClick={() => setMode('lead')} disabled={loading || mode === 'lead'}>
           Lead
+        </button>{' '}
+        <button type="button" onClick={() => setMode('real-flow')} disabled={loading || mode === 'real-flow'}>
+          Real Flow
         </button>
       </div>
       {mode === 'judge' && (
@@ -407,10 +415,115 @@ export default function TestPage() {
           </button>
         </div>
       )}
-      {debugLoading && <p>Loading preview...</p>}
-      {debugError && <p style={{ color: 'red' }}>{debugError}</p>}
-      {!debugData && !debugLoading && (
-        <p style={{ color: '#888' }}>Run a test to see debug information</p>
+      {mode === 'real-flow' && (
+        <>
+          <textarea
+            value={text}
+            onChange={(e) => {
+              setText(e.target.value);
+              setFlowResult(null);
+            }}
+            rows={10}
+            cols={70}
+            placeholder="Enter message text (e.g. /judge or a regular message)…"
+          />
+          <div>
+            <label htmlFor="rf-integration-select">Integration</label>{' '}
+            <select
+              id="rf-integration-select"
+              value={selectedIntegrationId}
+              onChange={(e) => {
+                const id = e.target.value;
+                setSelectedIntegrationId(id);
+                const selected = integrations.find((i) => String(i.id) === id);
+                if (selected) {
+                  setChannel(selected.channel);
+                  setExternalId(selected.externalId);
+                } else {
+                  setChannel('');
+                  setExternalId('');
+                }
+                setFlowResult(null);
+              }}
+              disabled={loading}
+            >
+              <option value="">-- Select integration --</option>
+              {integrations
+                .filter((i) => i.isEnabled)
+                .map((i) => (
+                  <option key={i.id} value={i.id}>
+                    {i.channel} | {i.externalId}
+                  </option>
+                ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="rf-channel">Channel</label>{' '}
+            <input
+              id="rf-channel"
+              type="text"
+              value={channel}
+              onChange={(e) => {
+                setChannel(e.target.value);
+                setFlowResult(null);
+              }}
+              disabled={loading}
+            />
+          </div>
+          <div>
+            <button type="button" onClick={runRealFlow} disabled={loading}>
+              {loading ? 'Running…' : 'Run Real Flow'}
+            </button>
+          </div>
+        </>
+      )}
+      {mode === 'real-flow' && flowResult && (
+        <div
+          style={{
+            border: '1px solid #ddd',
+            borderRadius: '6px',
+            padding: '12px',
+            marginTop: '12px',
+            background: '#fafafa',
+          }}
+        >
+          <h3>Real Flow Result</h3>
+          <div>
+            <strong>Flow Executed:</strong> {flowResult.flowExecuted}
+          </div>
+          <div>
+            <strong>Latency:</strong> {flowResult.latencyMs} ms
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <strong>Messages:</strong>
+            {flowResult.messages?.length ? (
+              flowResult.messages.map((m, i) => (
+                <pre
+                  key={i}
+                  style={{
+                    background: '#f7f7f7',
+                    padding: '8px',
+                    marginTop: '6px',
+                    whiteSpace: 'pre-wrap',
+                  }}
+                >
+                  {m.text}
+                </pre>
+              ))
+            ) : (
+              <div style={{ color: '#888', marginTop: 4 }}>No messages captured</div>
+            )}
+          </div>
+          {flowResult.error && (
+            <div style={{ color: 'red', marginTop: 8 }}>
+              <strong>Error:</strong> {flowResult.error}
+            </div>
+          )}
+        </div>
+      )}
+      {loading && !debugData && !flowResult && <p>Running test...</p>}
+      {!debugData && !flowResult && !loading && (
+        <p style={{ color: '#888' }}>Run a test to see results</p>
       )}
       {debugData && (
         <div

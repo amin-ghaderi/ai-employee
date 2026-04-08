@@ -15,4 +15,8 @@ public sealed class CreateBehaviorRequest
     public bool EnableChat { get; set; } = true;
     public bool EnableLead { get; set; } = true;
     public bool EnableJudge { get; set; } = true;
+    public string? JudgeInstruction { get; set; }
+    public string? JudgeSchemaJson { get; set; }
+    public string? LeadInstruction { get; set; }
+    public string? LeadSchemaJson { get; set; }
 }

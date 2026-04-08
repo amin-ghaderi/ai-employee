@@ -43,7 +43,11 @@ builder.Services.AddHttpClient<IAiClient, AiClient>(client =>
 builder.Services.AddHttpClient<ITelegramClient, TelegramClient>();
 builder.Services.AddDbContext<AiEmployeeDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
-builder.Services.AddScoped<IConversationRepository, EfConversationRepository>();
+builder.Services.AddScoped<EfConversationRepository>();
+builder.Services.AddScoped<IConversationRepository>(sp =>
+    new TestScopedConversationRepository(
+        sp.GetRequiredService<EfConversationRepository>(),
+        sp.GetRequiredService<RealFlowTestContext>()));
 builder.Services.AddScoped<IUserRepository, EfUserRepository>();
 builder.Services.AddScoped<ILeadRepository, EfLeadRepository>();
 builder.Services.AddScoped<IJudgmentRepository, EfJudgmentRepository>();
@@ -64,10 +68,17 @@ builder.Services.AddScoped<IAdminTestService, AdminTestService>();
 builder.Services.AddScoped<IPromptDebugService, PromptDebugService>();
 builder.Services.AddScoped<IJudgeExecutionService, JudgeExecutionService>();
 builder.Services.AddScoped<ILeadExecutionService, LeadExecutionService>();
+builder.Services.AddScoped<RealFlowTestService>();
 builder.Services.AddScoped<IBotResolver, BotResolver>();
 builder.Services.AddScoped<IChannelAdapter, TelegramChannelAdapter>();
 builder.Services.AddScoped<IChannelMessageSender, TelegramMessageSender>();
-builder.Services.AddScoped<IOutgoingMessageClient, OutgoingMessageDispatcher>();
+builder.Services.AddScoped<RealFlowTestContext>();
+builder.Services.AddScoped<OutgoingMessageDispatcher>();
+builder.Services.AddScoped<IOutgoingMessageClient>(sp =>
+    new CapturingOutgoingClientDecorator(
+        sp.GetRequiredService<OutgoingMessageDispatcher>(),
+        sp.GetRequiredService<RealFlowTestContext>()));
+builder.Services.AddScoped<IFlowTracker, FlowTracker>();
 builder.Services.AddScoped<IIncomingMessageHandler, IncomingMessageHandler>();
 builder.Services.AddScoped<AutomationService>();
 builder.Services.AddScoped<UserTaggingService>();

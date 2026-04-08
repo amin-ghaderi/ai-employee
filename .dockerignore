@@ -1,0 +1,32 @@
+# .NET build artifacts
+**/bin/
+**/obj/
+
+# IDE / editor
+.vs/
+.vscode/
+*.user
+*.suo
+
+# Frontend (not needed for API image)
+admin-ui/node_modules/
+admin-ui/dist/
+admin-ui/.vite/
+
+# Python (not needed for API image)
+ai-service/__pycache__/
+ai-service/.venv/
+
+# Data / secrets
+*.db
+*.env
+.env.*
+
+# Git
+.git
+.gitignore
+
+# Docker
+**/Dockerfile
+**/.dockerignore
+docker-compose.yml

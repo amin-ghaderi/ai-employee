@@ -61,6 +61,8 @@ export default function BehaviorsPage() {
   const [saving, setSaving] = useState(false);
   const [judgeSchemaText, setJudgeSchemaText] = useState(EMPTY_SCHEMA_TEXT);
   const [leadSchemaText, setLeadSchemaText] = useState(EMPTY_SCHEMA_TEXT);
+  const [editingId, setEditingId] = useState(null);
+  const [loadingEdit, setLoadingEdit] = useState(false);
 
   function getJsonWarning(rawValue, label) {
     const value = String(rawValue ?? '').trim();
@@ -184,7 +186,52 @@ export default function BehaviorsPage() {
     };
   }
 
-  async function handleCreate(e) {
+  async function handleEdit(id) {
+    setLoadingEdit(true);
+    setCreateError('');
+    try {
+      const b = await BehaviorsApi.getById(id);
+      setEditingId(id);
+      const judgeSchema = b.judgeSchemaJson ? JSON.parse(b.judgeSchemaJson) : {};
+      const leadSchema = b.leadSchemaJson ? JSON.parse(b.leadSchemaJson) : {};
+      setForm({
+        judgeContextMessageCount: String(b.judgeContextMessageCount ?? '5'),
+        judgePerMessageMaxChars: String(b.judgePerMessageMaxChars ?? '2000'),
+        judgeCommandPrefix: b.judgeCommandPrefix ?? '',
+        excludeCommandsFromJudgeContext: b.excludeCommandsFromJudgeContext ?? false,
+        followUpIndex: b.leadFlow?.followUpIndex != null ? String(b.leadFlow.followUpIndex) : '',
+        captureIndex: b.leadFlow?.captureIndex != null ? String(b.leadFlow.captureIndex) : '',
+        answerKeys: (b.leadFlow?.answerKeys ?? []).join(', '),
+        enableChat: b.enableChat ?? true,
+        enableLead: b.enableLead ?? true,
+        enableJudge: b.enableJudge ?? true,
+        hotLeadPotentialValue: b.hotLeadPotentialValue ?? '',
+        hotLeadTag: b.hotLeadTag ?? '',
+        judgeInstruction: b.judgeInstruction ?? '',
+        judgeSchema,
+        leadInstruction: b.leadInstruction ?? '',
+        leadSchema,
+      });
+      setJudgeSchemaText(b.judgeSchemaJson ? JSON.stringify(judgeSchema, null, 2) : EMPTY_SCHEMA_TEXT);
+      setLeadSchemaText(b.leadSchemaJson ? JSON.stringify(leadSchema, null, 2) : EMPTY_SCHEMA_TEXT);
+      setValidationError('');
+    } catch (e) {
+      setCreateError('Failed to load behavior: ' + (e.message || e));
+    } finally {
+      setLoadingEdit(false);
+    }
+  }
+
+  function handleCancelEdit() {
+    setEditingId(null);
+    setForm(emptyForm());
+    setJudgeSchemaText(EMPTY_SCHEMA_TEXT);
+    setLeadSchemaText(EMPTY_SCHEMA_TEXT);
+    setValidationError('');
+    setCreateError('');
+  }
+
+  async function handleSubmit(e) {
     e.preventDefault();
     if (saving) return;
     const v = validate();
@@ -196,7 +243,12 @@ export default function BehaviorsPage() {
     setCreateError('');
     setSaving(true);
     try {
-      await BehaviorsApi.create(buildRequestBody());
+      if (editingId) {
+        await BehaviorsApi.update(editingId, buildRequestBody());
+        setEditingId(null);
+      } else {
+        await BehaviorsApi.create(buildRequestBody());
+      }
       setForm(emptyForm());
       setJudgeSchemaText(EMPTY_SCHEMA_TEXT);
       setLeadSchemaText(EMPTY_SCHEMA_TEXT);
@@ -209,7 +261,7 @@ export default function BehaviorsPage() {
           (Array.isArray(e.response?.data?.errors) &&
             e.response.data.errors.join('; ')) ||
           e.message ||
-          'Create failed';
+          (editingId ? 'Update failed' : 'Create failed');
       setCreateError(msg);
     } finally {
       setSaving(false);
@@ -219,7 +271,12 @@ export default function BehaviorsPage() {
   return (
     <div>
       <h1>Behaviors</h1>
-      <form onSubmit={handleCreate}>
+      {editingId && (
+        <p><strong>Editing behavior:</strong> {editingId}{' '}
+          <button type="button" onClick={handleCancelEdit}>Cancel</button>
+        </p>
+      )}
+      <form onSubmit={handleSubmit}>
         <fieldset disabled={saving}>
           <legend>Judge</legend>
           <div>
@@ -468,9 +525,16 @@ export default function BehaviorsPage() {
           </div>
         </fieldset>
         <p>
-          <button type="submit" disabled={saving}>
-            {saving ? 'Creating...' : 'Create'}
+          <button type="submit" disabled={saving || loadingEdit}>
+            {saving
+              ? (editingId ? 'Saving...' : 'Creating...')
+              : (editingId ? 'Save' : 'Create')}
           </button>
+          {editingId && (
+            <button type="button" onClick={handleCancelEdit} disabled={saving} style={{ marginLeft: 8 }}>
+              Cancel
+            </button>
+          )}
         </p>
         {validationError && <p>{validationError}</p>}
         {createError && <p>{createError}</p>}
@@ -484,17 +548,27 @@ export default function BehaviorsPage() {
               <th>Id</th>
               <th>Prefix</th>
               <th>Flags</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
             {behaviors.map((b) => (
-              <tr key={b.id}>
+              <tr key={b.id} style={editingId === b.id ? { background: '#fffde7' } : undefined}>
                 <td>{b.id}</td>
                 <td>{b.judgeCommandPrefix ?? ''}</td>
                 <td>
                   chat {b.enableChat ? 'on' : 'off'} / lead{' '}
                   {b.enableLead ? 'on' : 'off'} / judge{' '}
                   {b.enableJudge ? 'on' : 'off'}
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    disabled={loadingEdit}
+                    onClick={() => handleEdit(b.id)}
+                  >
+                    {loadingEdit && editingId === b.id ? 'Loading...' : 'Edit'}
+                  </button>
                 </td>
               </tr>
             ))}

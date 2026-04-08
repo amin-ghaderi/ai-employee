@@ -61,6 +61,11 @@ public sealed class EfBehaviorRepository : IBehaviorRepository
             behavior.EnableLead,
             behavior.EnableJudge);
 
+        existing.JudgeInstruction = behavior.JudgeInstruction;
+        existing.JudgeSchemaJson = behavior.JudgeSchemaJson;
+        existing.LeadInstruction = behavior.LeadInstruction;
+        existing.LeadSchemaJson = behavior.LeadSchemaJson;
+
         await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
     }
 }

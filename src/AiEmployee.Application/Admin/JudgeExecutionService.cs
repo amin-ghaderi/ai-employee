@@ -142,15 +142,44 @@ public sealed class JudgeExecutionService : IJudgeExecutionService
             return [];
 
         var lines = text.Trim().Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+        var participantIndex = 0;
+        var participantIds = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
         var messages = new List<AiEmployee.Domain.Entities.Message>(lines.Length);
-        for (var i = 0; i < lines.Length; i++)
+        foreach (var line in lines)
         {
-            var userId = (i % 2 == 0) ? "admin-sim-a" : "admin-sim-b";
-            var firstName = (i % 2 == 0) ? "Alice" : "Bob";
-            messages.Add(new AiEmployee.Domain.Entities.Message(TestConversationId, userId, lines[i], firstName: firstName));
+            var (firstName, messageText) = ParseTranscriptLine(line);
+
+            var participantKey = firstName ?? $"__anon_{participantIndex}";
+            if (!participantIds.TryGetValue(participantKey, out var userId))
+            {
+                userId = $"admin-sim-{participantIndex}";
+                participantIds[participantKey] = userId;
+                participantIndex++;
+            }
+
+            messages.Add(new AiEmployee.Domain.Entities.Message(TestConversationId, userId, messageText, firstName: firstName));
         }
 
         return messages;
+    }
+
+    private static (string? Name, string Text) ParseTranscriptLine(string line)
+    {
+        var colonIndex = line.IndexOf(':');
+        if (colonIndex <= 0)
+            return (null, line);
+
+        var name = line[..colonIndex].Trim();
+        if (name.Length == 0 || name.Length > 50)
+            return (null, line);
+
+        var text = line[(colonIndex + 1)..].Trim();
+        if (text.Length == 0)
+            return (null, line);
+
+        return (name, text);
     }
 
 }

@@ -135,11 +135,8 @@ Assist users on Telegram with onboarding questions, optional lead qualification,
 Current input:
 {{TRANSCRIPT}}
 
-Reply with ONLY a valid JSON object — no markdown, no code fences, no text before or after. If the output is not valid JSON, the system will fail. Use exactly:
-{
-"winner": "...",
-"reason": "..."
-}
+Reply with ONLY a valid JSON object.
+Do not include any extra text.
 """);
 
     public static ClassificationSchema CreateDefaultClassificationSchema() =>
