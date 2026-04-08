@@ -48,6 +48,45 @@ public sealed class BotConfigurationSeeder
         }
 
         await EnsureTelegramIntegrationAsync(cancellationToken);
+        await RefreshWrapperTemplateAsync(cancellationToken);
+        await EnsureDefaultBehaviorFlagsAsync(cancellationToken);
+    }
+
+    private async Task EnsureDefaultBehaviorFlagsAsync(CancellationToken cancellationToken)
+    {
+        var id = JudgeBotDefaults.BehaviorId;
+        var behavior = await _db.Behaviors
+            .AsNoTracking()
+            .FirstOrDefaultAsync(b => b.Id == id, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (behavior is null)
+            return;
+
+        if (!behavior.EnableJudge || !behavior.EnableChat || !behavior.EnableLead)
+        {
+            await _db.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE Behaviors SET EnableJudge = 1, EnableChat = 1, EnableLead = 1 WHERE Id = {id} AND (EnableJudge = 0 OR EnableChat = 0 OR EnableLead = 0)",
+                cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private async Task RefreshWrapperTemplateAsync(CancellationToken cancellationToken)
+    {
+        var expected = JudgeBotDefaults.CreateJudgeTranscriptWrapperTemplate();
+        PromptTokens.ThrowIfJudgeWrapperMissingTranscriptPlaceholder(expected.Template);
+
+        var current = await _db.PromptTemplates
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Id == expected.Id, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (current is not null && current.Template != expected.Template)
+        {
+            await _db.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE PromptTemplates SET Template = {expected.Template} WHERE Id = {expected.Id}",
+                cancellationToken).ConfigureAwait(false);
+        }
     }
 
     private async Task EnsureTelegramIntegrationAsync(CancellationToken cancellationToken)

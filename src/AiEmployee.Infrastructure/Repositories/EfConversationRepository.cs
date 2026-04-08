@@ -74,10 +74,15 @@ public sealed class EfConversationRepository : IConversationRepository
             return;
         }
 
-        _db.Messages.RemoveRange(existing.Messages);
+        var toRemove = existing.Messages.ToList();
+        _db.Messages.RemoveRange(toRemove);
+        existing.Messages.Clear();
 
         foreach (var m in messages)
+        {
+            existing.Messages.Add(m);
             _db.Messages.Add(m);
+        }
 
 #if DEBUG
         foreach (var m in messages)

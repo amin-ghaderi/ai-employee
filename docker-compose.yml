@@ -1,0 +1,101 @@
+services:
+
+  # ───────────────────────────────────────────────
+  # React admin dashboard (Vite dev server)
+  # ───────────────────────────────────────────────
+  admin-ui:
+    build:
+      context: ./admin-ui
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./admin-ui:/app
+      - /app/node_modules            # preserve node_modules from image build
+    environment:
+      - VITE_API_URL=http://localhost:5155
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  # ───────────────────────────────────────────────
+  # Python AI service (FastAPI + Uvicorn)
+  # ───────────────────────────────────────────────
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./ai-service:/app
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-gpt-oss:120b-cloud}
+      - OLLAMA_TIMEOUT_SECONDS=${OLLAMA_TIMEOUT_SECONDS:-120}
+    depends_on:
+      - ollama
+    restart: unless-stopped
+
+  # ───────────────────────────────────────────────
+  # .NET API (ASP.NET Core 10)
+  # ───────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: src/AiEmployee.Api/Dockerfile
+    ports:
+      - "5155:5155"
+    volumes:
+      - .:/app
+      - nuget-cache:/root/.nuget/packages
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:5155
+      - Ai__BaseUrl=http://ai-service:8000
+      - ConnectionStrings__DefaultConnection=Data Source=aiemployee.db
+      - Admin__ApiKey=${ADMIN_API_KEY:-your-secret-key}
+      - Telegram__BotToken=${TELEGRAM_BOT_TOKEN:-}
+      - DOTNET_USE_POLLING_FILE_WATCHER=true
+    depends_on:
+      - ai-service
+    restart: unless-stopped
+
+  # ───────────────────────────────────────────────
+  # Ollama LLM inference server
+  # ───────────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    restart: unless-stopped
+    # Uncomment for NVIDIA GPU support (requires nvidia-container-toolkit):
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  # ───────────────────────────────────────────────
+  # ngrok tunnel (exposes .NET API publicly)
+  # ───────────────────────────────────────────────
+  ngrok:
+    image: ngrok/ngrok:latest
+    ports:
+      - "4040:4040"                  # ngrok web dashboard
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN:-}
+    command: http api:5155
+    depends_on:
+      - api
+    restart: unless-stopped
+    profiles:
+      - tunnel                       # only starts with: docker compose --profile tunnel up
+
+volumes:
+  ollama-data:
+  nuget-cache:

@@ -6,6 +6,11 @@ export const BehaviorsApi = {
     return data;
   },
 
+  async getById(id) {
+    const { data } = await api.get(`/behaviors/${id}`);
+    return data;
+  },
+
   async create(body) {
     const { data } = await api.post('/behaviors', body);
     return data;

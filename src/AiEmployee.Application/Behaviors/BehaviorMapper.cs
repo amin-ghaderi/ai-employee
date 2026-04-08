@@ -23,12 +23,16 @@ public static class BehaviorMapper
             EnableChat = behavior.EnableChat,
             EnableLead = behavior.EnableLead,
             EnableJudge = behavior.EnableJudge,
+            JudgeInstruction = behavior.JudgeInstruction,
+            JudgeSchemaJson = behavior.JudgeSchemaJson,
+            LeadInstruction = behavior.LeadInstruction,
+            LeadSchemaJson = behavior.LeadSchemaJson,
         };
     }
 
     public static Behavior ToDomain(Guid id, CreateBehaviorRequest request)
     {
-        return new Behavior(
+        var behavior = new Behavior(
             id,
             request.JudgeContextMessageCount,
             request.JudgePerMessageMaxChars,
@@ -43,11 +47,16 @@ public static class BehaviorMapper
             request.EnableChat,
             request.EnableLead,
             request.EnableJudge);
+        behavior.JudgeInstruction = request.JudgeInstruction;
+        behavior.JudgeSchemaJson = request.JudgeSchemaJson;
+        behavior.LeadInstruction = request.LeadInstruction;
+        behavior.LeadSchemaJson = request.LeadSchemaJson;
+        return behavior;
     }
 
     public static Behavior ToDomain(Guid id, UpdateBehaviorRequest request)
     {
-        return new Behavior(
+        var behavior = new Behavior(
             id,
             request.JudgeContextMessageCount,
             request.JudgePerMessageMaxChars,
@@ -62,6 +71,11 @@ public static class BehaviorMapper
             request.EnableChat,
             request.EnableLead,
             request.EnableJudge);
+        behavior.JudgeInstruction = request.JudgeInstruction;
+        behavior.JudgeSchemaJson = request.JudgeSchemaJson;
+        behavior.LeadInstruction = request.LeadInstruction;
+        behavior.LeadSchemaJson = request.LeadSchemaJson;
+        return behavior;
     }
 
     private static LeadFlowDto ToLeadFlowDto(LeadFlow leadFlow) =>

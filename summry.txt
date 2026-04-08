@@ -1,0 +1,2682 @@
+# 🧠 AiEmployee Project — Engineering Summary
+
+## 📅 Date: 2026-04-02
+
+---
+
+# 🎯 Project Overview
+
+**AiEmployee** is a hybrid AI system designed to act as an intelligent agent that can:
+
+* Receive messages (starting with Telegram)
+* Analyze conversations between users
+* Make judgments (e.g., who is right)
+* Return structured reasoning
+
+---
+
+# 🏗️ Architecture
+
+We are using:
+
+* Clean Architecture
+* Domain-Driven Design (DDD)
+* Channel-agnostic design
+* AI as an external tool (NOT core logic)
+
+---
+
+# 🧱 High-Level Structure
+
+```
+AiEmployee/
+│
+├── src/
+│   ├── AiEmployee.Api/            → Controllers (Adapters)
+│   ├── AiEmployee.Application/    → UseCases + Interfaces (Ports)
+│   ├── AiEmployee.Domain/         → Core business models (Pure)
+│   └── AiEmployee.Infrastructure/ → External systems (AI, DB)
+│
+├── ai-service/                    → Python FastAPI (AI layer)
+│
+├── tests/
+│   ├── UnitTests/
+│   └── IntegrationTests/
+│
+└── AiEmployee.sln
+```
+
+---
+
+# 🔁 System Flow
+
+```
+Client (Postman / Telegram)
+    ↓
+C# API (Controller)
+    ↓
+Application Layer (UseCase)
+    ↓
+AI Port (IAiClient)
+    ↓
+Infrastructure (HTTP call)
+    ↓
+Python FastAPI (/ai/judge)
+    ↓
+AI Response
+    ↓
+Mapped to Domain Model
+    ↓
+Returned to client
+```
+
+---
+
+# 🧠 Core Design Principles
+
+* Domain must be PURE (no HTTP, no AI, no JSON)
+* Application orchestrates logic and calls external services
+* Infrastructure handles external integrations (AI, DB)
+* AI is replaceable (loose coupling)
+* DTOs are used as anti-corruption layer
+
+---
+
+# 📦 Current Implementation State
+
+## ✅ Completed
+
+### 🟢 Architecture
+
+* Clean Architecture fully implemented
+* DDD layering correctly separated
+* Dependency rules enforced
+
+---
+
+### 🟡 Domain Layer
+
+* `JudgmentResult` implemented
+* Pure domain (no external dependencies)
+
+---
+
+### 🔵 Application Layer
+
+* `IAiClient` (port) defined
+* `JudgeUseCase` implemented
+* DTO (`JudgmentResultDto`) added
+* Mapping DTO → Domain handled
+
+---
+
+### 🟣 Infrastructure Layer
+
+* `AiClient` implemented
+* HTTP call to Python AI service
+* JSON serialization/deserialization working
+
+---
+
+### 🌐 API Layer
+
+* `TelegramController` implemented
+* Endpoint:
+
+  ```
+  POST /telegram/webhook
+  ```
+* Returns structured response:
+
+```json
+{
+  "winner": "...",
+  "reason": "..."
+}
+```
+
+---
+
+### 🐍 Python AI Service
+
+* FastAPI service implemented
+* Endpoint:
+
+  ```
+  POST /ai/judge
+  ```
+* Returns mock structured response:
+
+```json
+{
+  "winner": "Ali",
+  "reason": "Ali provided stronger argument"
+}
+```
+
+---
+
+### 🧪 Testing
+
+* Unit tests for Application layer
+* Integration test placeholder
+
+---
+
+### 🔗 Integration
+
+* Full end-to-end flow working:
+
+  * Postman → C# → Python → Response
+
+---
+
+### 🔧 Git & Dev Workflow
+
+* Git initialized
+* Feature branch created:
+  `feature/ai-pipeline-integration`
+* Multiple clean commits created
+* Merged into `main`
+* Feature branch deleted
+* Repository:
+  https://github.com/amin-ghaderi/ai-employee
+
+---
+
+# 🧠 Key Decisions Made
+
+* Chose hybrid architecture (C# + Python)
+* Kept AI outside Domain
+* Moved IAiClient to Application layer (correct DDD)
+* Introduced DTO as boundary
+* Refactored from string response → structured result
+
+---
+
+# ⚠️ Known Simplifications (MVP)
+
+* Domain currently minimal (only JudgmentResult)
+* No database yet
+* No real AI (mock response)
+* No validation on AI output
+* No logging / retry / resilience
+
+---
+
+# 🚀 Next Steps (Roadmap)
+
+## 🔥 Immediate Next
+
+1. Add validation for AI response (fail-safe)
+2. Handle null / malformed AI outputs
+
+---
+
+## ⚙️ Short Term
+
+* Add logging (request/response)
+* Add retry policy for AI calls
+* Improve prompt engineering
+
+---
+
+## 🗄️ Mid Term
+
+* Add database (PostgreSQL)
+* Store users, messages, judgments
+
+---
+
+## 📱 Integration
+
+* Connect real Telegram bot
+* Handle real user conversations
+
+---
+
+## 🧠 Advanced
+
+* Add personas
+* Add conversation memory
+* Add RAG (external knowledge)
+* Support multiple AI providers
+
+---
+
+# 🎯 Current Status
+
+```
+MVP COMPLETE ✅
+Architecture SOLID ✅
+Ready for Production Evolution 🚀
+```
+
+---
+
+# 🧠 Notes for Future Chats
+
+* This is NOT a toy project
+* Maintain strict Clean Architecture boundaries
+* Do NOT move AI into Domain
+* Always keep Domain pure
+* Prefer structured data over raw strings
+
+---
+
+# 🔥 Summary
+
+We successfully built a **production-grade hybrid AI system** with:
+
+* Proper architecture
+* Working end-to-end pipeline
+* Clean separation of concerns
+* Scalable foundation
+
+This project is now ready to evolve into a real AI product.
+
+
+
+2026-04-03
+# 📊 AI Employee Project — Work Session Report
+
+## 🟢 Phase 1 — Local LLM Setup (Ollama)
+
+* Identified issue: `ollama` not recognized in PowerShell
+* Installed Ollama successfully
+* Ran first model:
+
+  * `ollama run phi3`
+* Model downloaded (~2.2GB) and executed correctly
+* Verified basic responses via CLI
+
+**Result:** Local LLM is running and accessible
+
+---
+
+## 🟢 Phase 2 — Backend Integration (Python + LLM)
+
+* Connected FastAPI service to Ollama
+* Implemented API endpoint for AI judgment
+* Connected .NET backend to Python service
+* Verified request flow:
+
+  * .NET → Python → Ollama → Response
+
+**Result:** End-to-end AI pipeline working
+
+---
+
+## 🟢 Phase 3 — Functional Testing
+
+Tested multiple scenarios via Postman:
+
+* Scientific argument (flat Earth vs round Earth)
+* Mathematical validation (2+2)
+* Empty input
+* Informal / emotional input
+
+**Observations:**
+
+* AI responses were logical and consistent
+* Edge cases handled properly
+
+**Result:** Stable behavior under different inputs
+
+---
+
+## 🟢 Phase 4 — PostgreSQL Setup
+
+* Installed PostgreSQL
+* Fixed `psql not recognized` issue (used full path)
+* Connected using:
+
+  * `psql -U postgres`
+* Created database:
+
+  * `ai_employee`
+* Verified database list
+
+**Result:** Database ready and accessible
+
+---
+
+## 🟢 Phase 5 — Python ↔ Database Connection
+
+* Added:
+
+  * `config.py` → DATABASE_URL
+  * `db.py` → engine + session
+  * `test_db.py` → connection test
+* Resolved password encoding issue:
+
+  * `Amin@1366` → `Amin%401366`
+* Successfully tested DB connection
+
+**Result:** Python service connected to PostgreSQL
+
+---
+
+## 🟢 Phase 6 — ORM Model Design
+
+* Created `models.py`
+* Defined `Judgment` table:
+
+  * id, user_id, input_text, winner, reason, created_at
+* Enabled auto table creation:
+
+  * `Base.metadata.create_all()`
+
+**Result:** Database schema implemented
+
+---
+
+## 🟢 Phase 7 — Repository Layer
+
+* Implemented `JudgmentRepository`
+* Methods:
+
+  * `save_judgment(...)`
+  * `get_recent_judgments(...)`
+
+**Result:** Clean separation of data access layer
+
+---
+
+## 🟢 Phase 8 — Persisting AI Responses
+
+* Updated `main.py`
+* After LLM response:
+
+  * Save result in DB
+  * Manage DB session lifecycle
+
+**Result:** System became stateful (persistent memory)
+
+---
+
+## 🟢 Phase 9 — Memory / Context System
+
+* Added `history_format.py`
+* Implemented:
+
+  * History retrieval from DB
+  * Oldest-first ordering
+  * Token/length limits
+  * Prompt builder with:
+
+    * Previous context
+    * Current input
+
+**Result:** AI became context-aware
+
+---
+
+## 🟢 Phase 10 — Multi-user Support
+
+* Extended API request:
+
+  * `user_id + text`
+* Added validation:
+
+  * Reject empty `user_id` (400 error)
+* Filtered DB queries by `user_id`
+
+**Result:** User isolation achieved (no shared memory)
+
+---
+
+## 🟢 Phase 11 — .NET Integration Update
+
+* Updated:
+
+  * `IAiClient`
+  * `AiClient`
+  * `JudgeUseCase`
+* New contract:
+
+```json
+{ "user_id": "...", "text": "..." }
+```
+
+**Result:** Full compatibility between .NET and Python
+
+---
+
+## 🟢 Phase 12 — Multi-user Testing
+
+Performed Postman tests:
+
+* Multiple users (u1, u2)
+* Sequential requests
+* Context-based responses
+
+**Observations:**
+
+* No data leakage between users
+* Context correctly affects responses
+
+**Result:** Multi-user system validated
+
+---
+
+# 🧠 Final Architecture
+
+```
+Client (.NET / Telegram)
+        ↓
+C# Backend (UseCase Layer)
+        ↓
+Python FastAPI Service
+        ↓
+Prompt Builder + Memory Layer
+        ↓
+Ollama (Local LLM)
+        ↓
+PostgreSQL (Persistent Storage)
+```
+
+---
+
+# 🚀 Current Status
+
+**Completed:**
+
+* Local LLM integration
+* API communication
+* Database integration
+* Persistent memory system
+* Multi-user architecture
+* End-to-end working flow
+
+**Next Steps:**
+
+* Admin Console (configuration layer)
+* Telegram real integration
+* Scaling & queue system
+* Multi-agent / role-based AI
+
+---
+
+# ✅ Conclusion
+
+A fully functional **stateful, multi-user AI backend system** has been built, forming the **core engine of the AI Employee Platform**.
+
+2026-04-03
+# 📄 Development Report — AI Employee Platform (Session Summary)
+
+## 🧠 Overview
+
+This report summarizes all implementation steps and improvements completed during this development session.
+
+The work focused on transforming the system from a basic AI Telegram bot into a **structured, extensible AI-driven platform** with user profiling, automation, and lead generation capabilities.
+
+---
+
+# 🚀 Phase 1 — AI Judge Integration
+
+### ✅ Implemented:
+
+* Integrated AI service (Python FastAPI) with .NET backend
+* Created `IAiClient` and `AiClient`
+* Implemented `/ai/judge` endpoint communication
+* Built `JudgeUseCase`
+
+### 🔧 Improvements:
+
+* Structured prompt for better AI responses
+* Enforced JSON output (`winner`, `reason`)
+* Improved participant formatting (A/B → names)
+
+---
+
+# 💬 Phase 2 — Conversation System
+
+### ✅ Implemented:
+
+* `Message` entity (userId, username, text, timestamp)
+* `Conversation` entity (list of messages)
+* `IConversationRepository`
+* `InMemoryConversationRepository`
+
+### 🔧 Integrated:
+
+* Messages are stored per chat (conversationId = chatId)
+* TelegramWebhookController saves all incoming messages
+
+---
+
+# 👤 Phase 3 — User Profiling System
+
+---
+
+## Step 1 — User Foundation
+
+### ✅ Added:
+
+* `User` entity:
+
+  * MessagesCount
+  * JoinedAt / LastActiveAt
+  * EngagementScore
+  * Tags
+
+* `IUserRepository`
+
+* `InMemoryUserRepository`
+
+* DI registration
+
+---
+
+## Step 2 — User Integration
+
+### ✅ Implemented:
+
+* User loaded/created on every message
+* Profile updated from Telegram data
+* `RegisterMessage()` called
+* User saved after each message
+
+---
+
+## Step 3 — Engagement & Tagging
+
+### ✅ Added Domain Logic:
+
+* `RecalculateEngagement()`
+* `UpdateTags()`
+
+### 📊 Tags:
+
+* `new`
+* `active`
+* `inactive`
+* `high_engagement`
+
+---
+
+# ⚙️ Phase 3 — Automation Engine
+
+### ✅ Implemented:
+
+* `AutomationService`
+
+### 🔁 Rules:
+
+* inactive → send reactivation message
+* high_engagement → log notification
+
+### 🔗 Integrated:
+
+* Runs on every message
+* Executes actions via Telegram client
+
+---
+
+# 💰 Phase 3 — Lead Engine (AI-Based)
+
+---
+
+## Step 1 — Lead Foundation
+
+### ✅ Added:
+
+* `Lead` entity
+* `ILeadRepository`
+* `InMemoryLeadRepository`
+
+---
+
+## Step 2 — AI Integration
+
+### ✅ Extended AI Client:
+
+* Added `ClassifyLeadAsync`
+* Created `LeadClassificationDto`
+
+### ✅ Added:
+
+* `LeadClassificationService`
+
+---
+
+## Step 3 — Telegram Integration
+
+### ✅ Implemented Lead Capture Flow:
+
+1. Message 1 → Ask: "What is your goal?"
+2. Message 2 → Store as `goal`
+3. Message 3 → Store as `experience`
+
+---
+
+### ✅ Lead Processing:
+
+* Create Lead
+* Call AI classification
+* Store:
+
+  * user_type
+  * intent
+  * potential
+
+---
+
+### ✅ User Tagging:
+
+* If `potential == high` → add `hot_lead`
+
+---
+
+### ✅ UX:
+
+* Confirmation message sent:
+  "Got it! Thanks for sharing 🙌"
+
+---
+
+# 🤖 Telegram Bot Improvements
+
+### ✅ Implemented:
+
+* Proper command parsing (`/judge`, `/judge@bot`)
+* Group support (negative chatId fix)
+* Logging improvements
+* Error handling improvements
+
+---
+
+# 🧠 AI System Improvements
+
+### ✅ Enhanced:
+
+* Prompt structure for judging conversations
+* Participant mapping (UserId → readable names)
+* Enforced structured JSON output
+* Added lead classification prompt
+
+---
+
+# 🏗 Architecture Achievements
+
+### ✅ Clean Architecture fully enforced:
+
+* Domain → pure entities
+* Application → use cases + services
+* Infrastructure → external integrations
+* API → controllers only
+
+---
+
+### ✅ Separation of Concerns:
+
+* AI isolated behind `IAiClient`
+* Business logic in Application layer
+* No leakage of infrastructure into domain
+
+---
+
+# ⚠️ Known Limitations (MVP Stage)
+
+* Lead flow based on `MessagesCount` (fragile)
+* No conversation state machine
+* Automation may trigger repeatedly (no cooldown)
+* In-memory storage (no persistence)
+* No admin dashboard
+
+---
+
+# 🎯 Final Result
+
+The system evolved into:
+
+### 🔥 AI-Powered Telegram Growth Engine
+
+With capabilities:
+
+* Understand conversations
+* Judge debates using AI
+* Profile users behaviorally
+* Automate engagement
+* Detect and classify leads
+
+---
+
+# 🧭 Next Direction (Already Defined)
+
+### Phase A — Stabilization:
+
+* Improve onboarding UX
+* Remove fragility from lead flow
+* Prevent automation spam
+* Add reliability to message handling
+
+---
+
+## 🏁 Summary
+
+This session successfully transformed the project from:
+
+❌ Simple bot
+➡️
+✅ Scalable AI platform foundation
+
+---
+
+End of report.
+
+2026-04-04
+# 🚀 Development Report — AI Employee Platform (Stabilization Phase)
+
+## 📌 Overview
+
+This session focused on stabilizing the AI-driven Telegram system, improving UX, fixing critical architectural issues, and completing missing AI functionality.
+
+---
+
+## 🧱 Phase 1 — Core Flow Stabilization
+
+### 1. Fixed Automation Execution Order
+
+* Moved automation execution to the end of the request lifecycle
+* Ensured it runs **after all state changes** (user update, conversation save, lead creation)
+
+**Result:**
+
+* Consistent system behavior
+* No premature or incorrect automation triggers
+
+---
+
+### 2. Lead Flow Refactor (Critical Fix)
+
+* Removed dependency on `MessagesCount == 3`
+
+* Switched to **message-based extraction**
+
+* Used latest user messages for:
+
+  * `goal`
+  * `experience`
+
+* Added **idempotency check**:
+
+  * Prevent duplicate lead creation
+  * Prevent repeated confirmation messages
+
+**Result:**
+
+* Robust lead generation
+* Resistant to extra or unordered messages
+
+---
+
+### 3. Automation Spam Prevention
+
+* Introduced `*_notified` tags:
+
+  * `inactive_notified`
+  * `high_engagement_notified`
+
+* Updated domain logic to persist these tags across recalculations
+
+**Result:**
+
+* Each automation action triggers only once
+* No repeated spam messages
+
+---
+
+### 4. Dependency Injection Fix
+
+* Changed service lifetimes:
+
+  * `AutomationService` → Scoped
+  * `LeadClassificationService` → Scoped
+
+**Result:**
+
+* Eliminated captive dependency issue
+* Improved reliability under load
+
+---
+
+## 🤖 Phase 2 — AI System Completion
+
+### 5. Implemented Missing AI Endpoint
+
+* Added `POST /ai/lead/classify` in Python (FastAPI)
+
+**Features:**
+
+* Accepts structured prompt
+* Calls LLM via `ask_raw`
+* Parses and validates JSON output
+
+**Result:**
+
+* End-to-end AI lead classification working
+* Removed 404 errors from .NET backend
+
+---
+
+### 6. Extended LLM Client
+
+* Added `ask_raw()` method to `LlamaClient`
+* Reused internal Ollama call logic
+* Kept judge-specific logic unchanged
+
+**Result:**
+
+* Clean separation between:
+
+  * Judge logic
+  * Lead classification logic
+
+---
+
+## 💬 Phase 3 — UX Improvements
+
+### 7. Fixed Silent Onboarding Step
+
+* Added second onboarding response:
+
+  * After user provides goal → ask for experience
+
+**New Flow:**
+
+1. Ask goal
+2. Ask experience
+3. Create lead + confirmation
+
+**Result:**
+
+* No silent steps
+* Natural conversational UX
+
+---
+
+### 8. Simplified AI Judge Output
+
+* Removed `Winner` from Telegram response
+* Kept only explanation (reason)
+
+**Before:**
+
+* Displayed `UNKNOWN` → poor UX
+
+**After:**
+
+* Clean explanation-only response
+
+**Result:**
+
+* More reliable and user-friendly output
+* Reduced dependency on AI classification accuracy
+
+---
+
+## 🔧 Phase 4 — Git Workflow (Professional Setup)
+
+### 9. Implemented PR-Based Workflow
+
+* Created feature branch
+* Committed with structured message
+* Pushed and opened Pull Request
+* Merged via GitHub UI (not locally)
+
+**Result:**
+
+* GitHub activity tracked correctly
+* Achievement-eligible workflow
+
+---
+
+### 10. Repository Cleanup
+
+* Synced local `main` with `origin/main`
+* Deleted local feature branch
+* Pruned stale remote references
+
+**Final State:**
+
+* Clean working tree
+* Fully aligned with remote
+* No leftover branches
+
+---
+
+## 🧠 Final System Capabilities
+
+The system now supports:
+
+* ⚖️ AI-based argument judging (`/judge`)
+* 🎯 AI-powered lead generation and classification
+* ⚙️ Behavior-based automation engine
+* 💬 Structured onboarding conversation flow
+* 🧩 Clean Architecture with proper separation of concerns
+* 🔄 Stable, predictable execution flow
+
+---
+
+## ✅ Outcome
+
+The system has evolved from an unstable MVP into a:
+
+> **Production-ready (MVP-level) AI-powered engagement and lead engine**
+
+---
+
+## ⏭️ Next Steps (Recommended)
+
+* Implement fail-loud error handling
+* Add persistence (database)
+* Introduce explicit state machine for conversations
+* Expand lead monetization features
+
+---
+2026-04-04 
+# Technical Summary — AI Employee Platform (Stabilization & UX Improvements)
+
+---
+
+## 1. Project Context
+
+The project is an AI-powered Telegram bot platform built using Clean Architecture (.NET backend + Python AI service).
+
+This module focuses on:
+
+* Conversation handling
+* AI-based judgment (`/judge`)
+* Lead generation and classification
+* User profiling and automation
+
+**Main Goal:**
+Stabilize core message flow, complete AI lead classification, and improve onboarding UX to make the system production-ready at MVP level.
+
+---
+
+## 2. What Was Implemented
+
+### Core Stabilization
+
+* Reordered execution flow to ensure automation runs **after all state mutations**
+* Eliminated reliance on `MessagesCount == 3` for lead creation
+* Switched to **message-based extraction** using latest user messages
+
+### Lead Engine Improvements
+
+* Extracted:
+
+  * `goal` → second-to-last user message
+  * `experience` → last user message
+* Added **idempotency check** to prevent duplicate lead creation
+* Ensured confirmation message is sent only once
+
+### Automation Engine Fix
+
+* Introduced notification guard tags:
+
+  * `inactive_notified`
+  * `high_engagement_notified`
+* Persisted these tags across domain recalculation
+
+### AI Integration Completion
+
+* Implemented missing FastAPI endpoint:
+
+  * `POST /ai/lead/classify`
+* Extended LLM client with `ask_raw()` for generic prompt handling
+* Added JSON validation for classification output
+
+### UX Improvements
+
+* Added second onboarding step:
+
+  * After goal → ask for experience
+* Removed "Winner" from `/judge` output
+
+  * Now returns explanation only
+
+### Git Workflow
+
+* Adopted PR-based workflow (branch → commit → PR → merge)
+* Ensured GitHub activity tracking (no local merge)
+* Cleaned local and remote branches after merge
+
+---
+
+## 3. Technical Details
+
+### Technologies
+
+* Backend: .NET (ASP.NET Core)
+* AI Service: Python (FastAPI)
+* LLM: Ollama (via HTTP API)
+* Integration: Telegram Bot API
+
+### Architecture
+
+* Clean Architecture:
+
+  * Domain (pure entities)
+  * Application (use cases, services, interfaces)
+  * Infrastructure (AI client, repositories, Telegram client)
+  * API (controllers)
+
+### Patterns & Decisions
+
+* AI accessed via `IAiClient` abstraction
+* In-memory repositories (ConcurrentDictionary)
+* Stateless request handling with state derived from stored data
+* AI used selectively:
+
+  * `/judge`
+  * lead classification only
+
+### Constraints
+
+* No database (in-memory only)
+* No explicit state machine (implicit via message history)
+* Minimal dependencies (MVP-first approach)
+
+---
+
+## 4. Current State
+
+### Fully Working
+
+* Telegram webhook processing
+* Conversation storage and retrieval
+* AI judge flow (explanation-based output)
+* Lead onboarding (goal + experience)
+* AI lead classification (end-to-end)
+* Automation engine (non-spamming behavior)
+* Clean Git workflow
+
+### Stable Behavior
+
+* No silent UX steps
+* No duplicate leads
+* No automation spam
+* No missing AI endpoints
+
+---
+
+## 5. Pending Tasks / Next Steps
+
+1. Implement **fail-loud error handling**
+
+   * Replace silent `catch` with user-visible fallback messages
+
+2. Improve **engagement scoring logic**
+
+   * Prevent early triggering of `high_engagement`
+
+3. Introduce **persistent storage**
+
+   * Replace in-memory repositories (e.g., EF Core, SQLite)
+
+4. Add **explicit conversation state management**
+
+   * Replace implicit message-count logic with state machine
+
+5. Enhance **AI judge quality**
+
+   * Improve prompt constraints
+   * Optionally derive winner from reasoning
+
+6. Add **admin/monitoring features**
+
+   * Lead visibility
+   * Activity tracking
+
+---
+
+## 6. Important Notes
+
+* AI classification depends on strict JSON output; malformed responses trigger 502
+* Current system silently swallows exceptions in controller (needs fixing)
+* Engagement score may spike for new users due to short time window
+* Lead flow assumes sequential answers but is now resilient to extra messages
+* System is stateful but lacks explicit session/state tracking
+
+---
+
+## 7. How to Continue in Next Chat
+
+Continue by implementing **fail-loud error handling** in the TelegramWebhookController:
+
+* Replace generic exception handling with:
+
+  * User-facing fallback messages
+  * Proper logging context
+* Ensure AI failures do not break user flow
+* Keep changes minimal and aligned with Clean Architecture
+
+Focus on reliability and observability before adding new features.
+
+2026-04-04 15:24
+
+# Technical Summary — AI Employee Platform (Reliability & Stability Improvements)
+
+---
+
+## 1. Project Context
+
+The project is an AI-powered Telegram-based platform built using Clean Architecture (.NET backend + Python AI service with LLM).
+
+This module focuses on:
+
+* Telegram webhook processing
+* AI-based judgment and lead classification
+* Reliable communication between .NET and Python AI service
+
+**Main Goal:**
+Improve system reliability and correctness by eliminating silent failures, enforcing fail-loud behavior, and introducing resilience for AI communication.
+
+---
+
+## 2. What Was Implemented
+
+### 1. Fail-Loud Error Handling (Webhook Layer)
+
+* Replaced silent exception handling in `TelegramWebhookController`
+
+* Introduced differentiated error handling:
+
+  * `AiServiceException` → user notified + HTTP 200 (prevent retries)
+  * Generic exceptions → HTTP 500 (allow retry)
+
+* Added user-facing fallback message via `ITelegramClient`
+
+---
+
+### 2. AI Failure Normalization
+
+* Introduced `AiServiceException` (Application layer)
+
+* Standardized all AI-related failures:
+
+  * HTTP errors
+  * Timeouts
+  * Invalid JSON
+  * Empty responses
+
+* Ensured all recoverable AI failures are propagated consistently to the controller
+
+---
+
+### 3. Removal of Silent / Fake AI Responses
+
+* Eliminated fallback pattern:
+
+  * `return dto ?? new JudgmentResultDto()`
+
+* Replaced with explicit failure:
+
+  * Throw `AiServiceException` on null/invalid responses
+
+* Prevented false-positive successful responses
+
+---
+
+### 4. Retry Mechanism for AI Calls
+
+* Implemented retry logic in `AiClient`:
+
+  * Max 3 attempts
+  * Exponential backoff (500ms → 1000ms)
+  * Retry only on:
+
+    * `HttpRequestException`
+    * `TaskCanceledException`
+
+* No retry for:
+
+  * `JsonException`
+  * `AiServiceException`
+
+---
+
+### 5. Error Handling Strategy
+
+* Defined clear separation:
+
+  * **Recoverable errors (AI-related)** → handled gracefully
+  * **System errors** → fail loud (HTTP 500)
+
+* Prevented:
+
+  * Retry storms
+  * Duplicate message processing
+  * Silent data corruption
+
+---
+
+## 3. Technical Details
+
+### Technologies
+
+* Backend: ASP.NET Core (.NET)
+* AI Service: Python FastAPI
+* LLM Integration: Ollama (local)
+* Communication: HTTP (JSON)
+
+---
+
+### Architecture
+
+* Clean Architecture:
+
+  * Domain: pure entities
+  * Application: use cases + interfaces
+  * Infrastructure: AI client, Telegram client
+  * API: controllers
+
+---
+
+### Key Patterns & Decisions
+
+* AI accessed via `IAiClient` abstraction
+* Introduced domain-level exception (`AiServiceException`) for boundary control
+* Fail-loud design with controlled recovery paths
+* Retry implemented manually (lightweight, no Polly)
+* No architectural refactor (minimal, targeted changes)
+
+---
+
+### Constraints
+
+* In-memory repositories still in use (.NET side)
+* No centralized logging or tracing
+* Hardcoded AI base URL (not yet externalized)
+
+---
+
+## 4. Current State
+
+### Fully Working
+
+* Telegram webhook handling with safe error behavior
+* AI judgment and lead classification (end-to-end)
+* Retry-enabled AI communication
+* Consistent error propagation across layers
+* User notification on recoverable failures
+
+---
+
+### Stability Improvements
+
+* No silent failures
+* No fake/empty AI responses
+* No retry storms from Telegram
+* Predictable system behavior under failure
+
+---
+
+## 5. Pending Tasks / Next Steps
+
+1. Introduce explicit conversation state management (state machine)
+2. Externalize AI service configuration (base URL, timeouts)
+3. Replace in-memory repositories with persistent storage
+4. Improve structured logging (add context, correlation IDs)
+5. Optional: extract retry logic into reusable helper
+6. Add idempotency handling for Telegram updates (`update_id`)
+
+---
+
+## 6. Important Notes
+
+* AI failures are treated as recoverable and do not trigger Telegram retries
+* System errors still return HTTP 500 and may be retried by Telegram
+* Current conversation flow relies on implicit message ordering (fragile)
+* Retry logic is intentionally simple (MVP-level, no Polly)
+* Python service already includes stronger validation and partial retry logic
+* System is stable but not horizontally scalable yet (due to in-memory state)
+
+---
+
+## 7. How to Continue in Next Chat
+
+Continue by designing and implementing an explicit conversation state machine:
+
+* Replace message-count-based logic with state-driven flow
+* Introduce a `ConversationState` enum in Domain
+* Update use cases to transition state explicitly
+* Ensure backward compatibility with existing message handling
+
+Focus on correctness and simplicity, not feature expansion.
+
+2026-04-04 18:44
+
+## 1. Project Context
+
+* The project is an **AI-powered Telegram bot system** that evaluates conversations and determines which participant has the stronger argument (“judge” feature).
+* This module focuses on the **end-to-end judging pipeline**, from Telegram webhook → backend processing → AI evaluation → user response.
+* The main goal is to build a **reliable, context-aware, multilingual AI judgment system** with consistent output quality.
+
+---
+
+## 2. What Was Implemented
+
+### Core Improvements
+
+* **Context Window Upgrade**
+
+  * Increased conversation context from **10 → 50 messages**.
+  * Ensures better reasoning in longer discussions.
+
+* **Noise Filtering**
+
+  * Removed `/judge` commands from context before sending to AI.
+
+* **Message Trimming**
+
+  * Each message is truncated to **max 500 characters**.
+  * Prevents prompt explosion and performance degradation.
+
+* **Empty Context Guard**
+
+  * If no valid messages exist after filtering:
+
+    * AI is NOT called
+    * User receives: `"Not enough conversation to judge."`
+
+* **Strict Language Consistency**
+
+  * Updated AI prompt to enforce:
+
+    * Single-language responses (Persian / English / Swedish)
+    * No language mixing
+    * Language determined from conversation context
+
+* **Improved Tone**
+
+  * AI responses are now:
+
+    * Natural
+    * Friendly
+    * Human-like
+    * Concise (1–2 sentences)
+
+---
+
+### Resulting Pipeline
+
+```
+Telegram → Webhook → Context Builder
+→ Filter (/judge removed)
+→ Trim (500 chars)
+→ Guard (empty check)
+→ Prompt Build
+→ AI (Python + LLM)
+→ Response (Winner + Reason)
+```
+
+---
+
+## 3. Technical Details
+
+### Backend (.NET)
+
+* **Framework:** ASP.NET Core
+* **Architecture:** Clean Architecture (API → Application → Domain → Infrastructure)
+* **Key Components:**
+
+  * `TelegramWebhookController` → orchestrates flow
+  * `JudgeUseCase` → application layer (pass-through)
+  * `AiClient` → HTTP integration with AI service
+
+### AI Service (Python)
+
+* **Framework:** FastAPI
+* **LLM Integration:** Ollama (`/api/generate`)
+* **Key Files:**
+
+  * `main.py` → `/ai/judge` endpoint
+  * `llama_client.py` → prompt + model interaction
+  * `history_format.py` → input wrapper
+
+### Prompt Strategy
+
+* Centralized in:
+
+  ```
+  ai-service/ai/llama_client.py → JUDGE_PROMPT_TEMPLATE
+  ```
+* Uses:
+
+  * Strict JSON schema (`winner`, `reason`)
+  * Strong behavioral constraints (language, tone)
+
+---
+
+### Key Decisions
+
+* **Context handled in backend**, not AI
+* **AI only responsible for reasoning**, not control flow
+* **Prompt = behavior layer**, not business logic
+* **Character-based trimming** instead of token-based (simpler MVP)
+
+---
+
+## 4. Current State
+
+### Fully Working
+
+* End-to-end `/judge` flow
+* 50-message context window
+* Prompt size control (trim)
+* Language consistency (fixed)
+* Stable Telegram integration via webhook + ngrok
+* AI responses:
+
+  * Accurate
+  * Context-aware
+  * Multilingual (no mixing)
+
+### Partially Complete
+
+* No validation layer for AI output (trusts model fully)
+* No topic separation (multi-topic conversations handled as one)
+* No confidence scoring
+
+---
+
+## 5. Pending Tasks / Next Steps
+
+### High Priority
+
+1. **AI Validation Layer**
+
+   * Detect weak/invalid outputs
+   * Retry or reject inconsistent responses
+
+2. **Minimum Context Rule**
+
+   * Ensure at least 2 participants before judging
+
+---
+
+### Medium Priority
+
+3. **Multi-topic Detection**
+
+   * Split conversations into separate disputes
+   * Judge each independently
+
+4. **Token-based Context Control**
+
+   * Replace character trimming with token-aware limits
+
+---
+
+### Product Enhancements
+
+5. **Confidence Score**
+
+   * Example: `Winner: Ali (Confidence: 82%)`
+
+6. **Improved Output UX**
+
+   * Structured responses for multiple arguments
+
+---
+
+## 6. Important Notes
+
+* **No prompt size safeguard beyond trimming**
+
+  * Extremely long inputs may still affect performance
+
+* **LLM is non-deterministic**
+
+  * Even with strict prompts, occasional inconsistencies may occur
+
+* **Language detection is AI-driven**
+
+  * No backend enforcement yet
+
+* **Conversation history is stateless per request**
+
+  * Each `/judge` uses last 50 messages only
+
+* **Display names are preserved**
+
+  * No normalization applied (intentional)
+
+---
+
+## 7. How to Continue in Next Chat
+
+Continue by designing and implementing an **AI Validation Layer** that:
+
+* Verifies correctness and consistency of AI outputs
+* Detects contradictions or low-quality reasoning
+* Retries or rejects invalid responses before returning to the user
+
+Focus on keeping validation lightweight and compatible with the current architecture.
+
+
+2026-04-05 16:36 
+
+## 1. Project Context
+
+* The project is an **AI-driven, multi-channel messaging platform** designed to process user interactions, apply business logic (judge, lead qualification, automation), and respond via different communication channels.
+* The goal of this phase was to **evolve the system from a Telegram-centric MVP into a channel-agnostic, data-driven architecture** with persistent storage, configurable behavior, and clean separation of concerns.
+
+---
+
+## 2. What Was Implemented
+
+* **Persistence Layer Migration**
+
+  * Replaced in-memory repositories with **EF Core + SQLite**.
+  * Implemented repositories for `User`, `Conversation`, `Lead`, and `Judgment`.
+  * Added migrations, automatic `Database.MigrateAsync()`, and idempotent seeding.
+
+* **Bot Configuration System (Data-Driven)**
+
+  * Introduced domain models: `Bot`, `BotIntegration`, `Persona`, `Behavior`, `LanguageProfile`, `PromptTemplate`.
+  * Stored configuration in database and seeded default `JudgeBot`.
+  * Implemented `IBotConfigurationRepository` and EF-based retrieval.
+  * Added `BotIntegration` to map `(channel, externalId)` → `Bot`.
+
+* **Prompt System Refactor**
+
+  * Introduced `PromptBuilder` for building:
+
+    * Transcript-only prompts
+    * Full prompts (wrapper + persona template)
+  * Moved prompt responsibility from Python to .NET (optional via `UseFullJudgePrompt`).
+
+* **AI Integration Simplification**
+
+  * Python service simplified to accept **full prompt** (`/ai/judge/full`).
+  * Removed legacy prompt-building logic from Python.
+
+* **Messaging Architecture (Channel-Agnostic)**
+
+  * Introduced `IncomingMessage` as canonical message model.
+  * Added:
+
+    * `IChannelAdapter` → maps raw requests to `IncomingMessage`
+    * `IIncomingMessageHandler` → central orchestration
+    * `IOutgoingMessageClient` + `OutgoingMessageDispatcher`
+    * `IChannelMessageSender` → per-channel senders (e.g., Telegram)
+
+* **Bot Resolution Abstraction**
+
+  * Introduced `IBotResolver` to decouple handler from repository.
+  * Resolves bot configuration using `(channel, integrationExternalId)`.
+
+* **Controller Simplification**
+
+  * Removed legacy `TelegramController`.
+  * `TelegramWebhookController` now:
+
+    * maps request → `IncomingMessage`
+    * delegates to handler
+
+* **README Refactor**
+
+  * Updated to reflect production architecture:
+
+    * EF persistence
+    * Data-driven configuration
+    * Multi-channel design
+    * Failure handling
+    * System principles
+
+---
+
+## 3. Technical Details
+
+* **Technologies**
+
+  * .NET (ASP.NET Core)
+  * EF Core (SQLite)
+  * Python FastAPI (AI service)
+  * Ollama (LLM runtime)
+
+* **Architecture**
+
+  * Clean Architecture (Domain / Application / Infrastructure / API)
+  * Event-driven message pipeline
+  * Data-driven configuration (DB as source of truth)
+
+* **Key Patterns**
+
+  * Repository pattern (EF-backed)
+  * Adapter pattern (`IChannelAdapter`)
+  * Strategy/dispatch pattern (`IChannelMessageSender`)
+  * Orchestrator (`IncomingMessageHandler`)
+  * Configuration aggregation (`JudgeBotConfiguration`)
+  * Value objects with JSON conversion (EF)
+
+* **Constraints**
+
+  * Application layer has **no dependency on channels or infrastructure**
+  * Channel-specific logic isolated in Infrastructure
+  * All runtime behavior driven by database configuration
+
+---
+
+## 4. Current State
+
+* **Fully Working**
+
+  * End-to-end Telegram webhook flow:
+
+    * Request → Adapter → IncomingMessage → Handler → AI → Response
+  * EF persistence with migrations and seeding
+  * Bot configuration fully loaded from database
+  * Prompt system (both transcript and full prompt modes)
+  * Channel-agnostic messaging pipeline
+  * Outgoing message dispatch via channel senders
+
+* **Partially Complete**
+
+  * Only Telegram channel is fully implemented (adapter + sender)
+  * AI full-prompt mode exists but depends on configuration flag usage
+
+---
+
+## 5. Pending Tasks / Next Steps
+
+* Implement additional channels:
+
+  * WhatsApp adapter + sender
+  * Web/chat widget adapter + sender
+
+* Remove remaining Telegram assumptions from:
+
+  * API routes (optional abstraction layer)
+  * Domain constants (if needed)
+
+* Enhance configuration system:
+
+  * Admin UI for managing Bot / Persona / Behavior
+  * Versioning or audit for configurations
+
+* Improve observability:
+
+  * Structured logging
+  * Metrics and tracing
+
+* Add integration tests:
+
+  * Full pipeline tests (webhook → AI → response)
+  * Multi-channel scenarios
+
+---
+
+## 6. Important Notes
+
+* **Single Source of Truth**
+
+  * Bot behavior is fully data-driven; database is authoritative.
+  * Code only orchestrates execution.
+
+* **Failure Handling**
+
+  * Missing integration → fallback to default bot
+  * AI failure → generic user-facing message
+  * Missing channel sender → log and skip (no exception)
+
+* **Core Orchestration**
+
+  * `IncomingMessageHandler` is the central execution layer.
+  * All business flows (judge, lead, automation) run through it.
+
+* **AI Role**
+
+  * AI is a decision component, not a system driver.
+  * It returns structured outputs (`winner`, `reason`), not control flow.
+
+---
+
+## 7. How to Continue in Next Chat
+
+Continue by implementing **multi-channel support**, starting with a new channel (e.g., WhatsApp):
+
+1. Create a new `IChannelAdapter` implementation.
+2. Create a corresponding `IChannelMessageSender`.
+3. Register both in DI.
+4. Ensure no changes are required in `IncomingMessageHandler`.
+
+Focus on validating that the system remains **fully channel-agnostic without modifying core logic**.
+
+2026-04-05 19:13
+
+## 1. Project Context
+
+* The project is a production-grade AI-driven messaging platform (Telegram-based) built using Clean Architecture.
+* It supports configurable bots with dynamic behavior powered by database-stored configuration (Bot, Persona, Behavior, PromptTemplate, AutomationRules).
+* The goal of this phase was to **fully eliminate hardcoded business logic** and transform the system into a **data-driven AI behavior engine**, where runtime behavior is controlled by persisted configuration rather than code.
+
+---
+
+## 2. What Was Implemented
+
+* Replaced all hardcoded UX text with `LanguageProfile` fields.
+* Migrated lead flow logic from fixed conditions (`message count`, `"goal"/"experience"`) to:
+
+  * `Behavior.LeadFlow` (FollowUpIndex, CaptureIndex, AnswerKeys)
+  * Dynamic answer extraction based on configuration.
+* Replaced hardcoded AI prompt in `LeadClassificationService` with:
+
+  * `Persona.Prompts.Lead`
+  * Placeholder substitution (`{{goal}}`, `{{experience}}`)
+  * Explicit mapping using `AnswerKeys` (removed implicit dictionary ordering dependency).
+* Converted automation system from hardcoded rules to:
+
+  * `Behavior.AutomationRules`
+  * Generic rule evaluation in `AutomationService`
+  * Type-safe execution via `AutomationActionKind` (removed string-based actions).
+* Introduced `EngagementRules` in `Behavior` to externalize:
+
+  * Time thresholds (48h, 72h)
+  * Message thresholds (≥10)
+  * Engagement scoring parameters
+  * Sticky tags
+* Implemented `UserTaggingService`:
+
+  * Replicates previous `User.UpdateTags()` logic using `EngagementRules`
+  * Fully data-driven tagging policy.
+* Migrated tagging execution from Domain to Application:
+
+  * Removed `UpdateTags()` from `User`
+  * Applied tagging via `UserTaggingService` in `IncomingMessageHandler`.
+* Ensured backward compatibility by preserving default seed values.
+
+---
+
+## 3. Technical Details
+
+* **Tech stack:**
+
+  * .NET (C#), EF Core, SQLite
+  * Clean Architecture (Domain / Application / Infrastructure / API)
+* **Key patterns:**
+
+  * Configuration-driven behavior (Behavior, Persona, LanguageProfile)
+  * Policy Engine (UserTaggingService, AutomationService)
+  * Template-based prompt generation
+  * Strategy via `AutomationActionKind`
+* **Architecture constraints:**
+
+  * Domain remains pure (no AI, no external config dependency)
+  * Application layer orchestrates behavior using config
+  * Infrastructure handles persistence and external integrations (Telegram, AI service)
+* **Design decisions:**
+
+  * Avoid over-engineering (no complex template engines)
+  * Preserve backward compatibility at every step
+  * Incremental migration instead of full rewrite
+
+---
+
+## 4. Current State
+
+### Working
+
+* Fully data-driven:
+
+  * UX messages
+  * Lead flow
+  * AI prompt generation
+  * Automation rules
+  * Engagement/tagging policy
+* No hardcoded business logic remains in Application or Domain.
+* Domain entities are clean and focused on state + invariants.
+* Automation and tagging systems are extensible via DB configuration.
+* System supports multi-bot behavior via `BotResolver`.
+
+### Partially Complete
+
+* `EngagementScore` is still calculated in Domain (`User.RecalculateEngagement`) while also recalculated in Application (temporary duplication).
+* Tag names (`"new"`, `"active"`, etc.) are still string literals (not yet centralized).
+
+---
+
+## 5. Pending Tasks / Next Steps
+
+* Move `EngagementScore` calculation fully out of Domain into Application layer.
+* Optionally centralize tag names into configuration or constants.
+* Build Admin/Backoffice:
+
+  * Manage Persona, Behavior, AutomationRules
+  * Edit prompts and thresholds dynamically
+* Add observability:
+
+  * Logging for decisions (automation, tagging, AI outputs)
+  * Correlation IDs across flow
+* Introduce versioning:
+
+  * Prompt versions
+  * Behavior versions (for experimentation)
+* Add multi-bot management UI and A/B testing capability.
+* Improve resilience:
+
+  * Idempotency for incoming messages
+  * Better error recovery for AI failures
+
+---
+
+## 6. Important Notes
+
+* Tagging logic is now **Application-driven**, but Domain still stores tag state.
+* `EngagementScore` duplication must be resolved in future refactor.
+* Automation depends on tags generated by tagging service — ordering must be preserved.
+* `Dictionary<string, string>` for answers relies on explicit key mapping (fixed in latest step).
+* Behavior configuration is now **critical runtime dependency** — invalid data can affect system behavior.
+* Current system assumes single-user conversations; group chat edge cases are not fully modeled.
+* SQLite + synchronous flow may become a bottleneck under high load.
+
+---
+
+## 7. How to Continue in Next Chat
+
+Focus on **productization and operational maturity**:
+
+* Extend system with an **Admin Panel** for managing Behavior, Persona, and AutomationRules.
+* Refactor **EngagementScore** to be fully application-controlled.
+* Add **observability and tracing** across message → AI → automation flow.
+* Prepare system for **multi-bot scaling and experimentation (A/B testing)**.
+
+Continue with incremental, backward-compatible improvements aligned with the existing architecture.
+
+2026-04-06   00:51
+
+## 1. Project Context
+
+* The project is an **AI-powered judging system** within a larger AI Employee Platform.
+* This module evaluates a conversation between participants and determines a **winner with reasoning** using an LLM.
+* The goal of this phase was to build a **reliable end-to-end judge pipeline** including:
+
+  * Conversation storage
+  * Prompt construction
+  * LLM invocation
+  * Structured (JSON) response handling
+  * Admin testing interface
+
+---
+
+## 2. What Was Implemented
+
+* Implemented a full **Judge execution pipeline**:
+
+  * Conversation messages are stored in the database.
+  * `PromptBuilder` constructs a transcript and optionally a full judge prompt.
+  * `JudgeUseCase` orchestrates execution based on configuration (`UseFullJudgePrompt`).
+  * `AiClient` sends requests to the Python AI service (`/ai/judge/full`).
+  * The Python service (`llama_client`) calls the LLM and enforces JSON parsing.
+
+* Built an **Admin Test flow** that simulates real conversations:
+
+  * Input text is converted into structured `Message` entities.
+  * Messages are persisted using `ReplaceMessagesAsync`.
+  * The same pipeline as production is reused (no mock logic).
+
+* Fixed a critical **EF Core concurrency bug**:
+
+  * Root cause: EF incorrectly issuing `UPDATE` for new messages.
+  * Solution:
+
+    * Removed `existing.Messages.Clear()`
+    * Avoided navigation-based insertion (`existing.AddMessage`)
+    * Explicitly used `_db.Messages.Add(m)` for new messages
+  * Result: Correct behavior → `DELETE old + INSERT new`
+
+* Stabilized **LLM JSON output handling**:
+
+  * Strict parsing via `_extract_json_object`
+  * Proper error propagation (`JudgeOutputError → HTTP 502`)
+
+---
+
+## 3. Technical Details
+
+* **Backend (C# / .NET)**
+
+  * ASP.NET Core API
+  * Entity Framework Core (SQLite)
+  * Clean Architecture (Application / Domain / Infrastructure separation)
+
+* **AI Service (Python)**
+
+  * FastAPI
+  * Ollama-based LLM integration
+  * Strict JSON parsing with fallback extraction
+
+* **Key Patterns & Decisions**
+
+  * UseCase pattern (`JudgeUseCase`)
+  * Repository pattern (`IConversationRepository`)
+  * Prompt composition via `PromptBuilder`
+  * Config-driven behavior (`AiOptions.UseFullJudgePrompt`)
+  * Separation of concerns between:
+
+    * Prompt generation
+    * AI execution
+    * Persistence
+
+* **Constraints**
+
+  * LLM must return strict JSON
+  * No schema enforcement at model level (prompt + validation approach)
+  * EF Core change tracking must remain predictable
+
+---
+
+## 4. Current State
+
+### ✅ Working
+
+* End-to-end judge pipeline is stable:
+
+  * Conversation → Prompt → LLM → JSON → UI
+* EF Core persistence is correct (no concurrency exceptions)
+* `/ai/judge/full` path is fully operational
+* Admin Test UI accurately simulates real execution
+* JSON parsing and error handling are reliable
+* LLM produces coherent reasoning in normal scenarios
+
+### ⚠️ Partially Complete
+
+* LLM output is **not fully constrained**:
+
+  * May hallucinate participant names (e.g., "Bob", "Alice")
+* No backend validation of LLM output
+* No retry/fallback mechanism for invalid results
+
+---
+
+## 5. Pending Tasks / Next Steps
+
+1. **Prompt Hardening**
+
+   * Enforce strict participant constraints:
+
+     * "Only choose from names present in the conversation"
+     * "Do not invent names"
+     * Handle single-participant cases explicitly
+
+2. **Participant Extraction**
+
+   * Extract participant names from conversation in backend
+   * Inject into prompt:
+
+     * `Participants: [Ali, Sara]`
+
+3. **Output Validation Layer**
+
+   * Validate:
+
+     * `winner ∈ participants`
+   * Reject invalid outputs
+
+4. **Retry / Fallback Strategy**
+
+   * On invalid output:
+
+     * Retry with stricter prompt OR
+     * Fallback to deterministic logic
+
+5. **Edge Case Handling**
+
+   * Single participant conversations
+   * Empty or malformed input
+   * Very short conversations
+
+6. **Optional Enhancements**
+
+   * Add structured output schema (if model supports)
+   * Add logging for LLM reasoning quality
+
+---
+
+## 6. Important Notes
+
+* EF Core issue was **not a concurrency token problem** but incorrect entity state inference.
+* LLM cannot be trusted to follow constraints without **explicit guardrails**.
+* Prompt-only solutions are insufficient; **backend validation is required**.
+* Current system assumes:
+
+  * At least one valid participant exists
+  * Input follows "Name: message" format
+* Hallucinated participants are a known issue and must be handled before production.
+
+---
+
+## 7. How to Continue in Next Chat
+
+Continue by implementing **guardrails for LLM correctness**:
+
+1. Extract participants from conversation in backend
+2. Inject participants into the prompt
+3. Add validation to ensure `winner` is one of them
+4. Implement retry or fallback when validation fails
+
+Focus on making the judge system **constraint-safe and production-ready**.
+
+2026-04-07 01:15
+
+## 1. Project Context
+
+* The project is an **AI-driven backend system** that manages bots with configurable **Personas, Behaviors, and Prompt Templates**, and executes workflows such as **judge evaluation, chat, and lead classification**.
+* The goal of this phase was to make the system **safe, debuggable, and production-ready** by introducing:
+
+  * **Prompt validation**
+  * **Prompt versioning**
+  * **End-to-end observability for AI calls**
+
+---
+
+## 2. What Was Implemented
+
+### Prompt Validation
+
+* Enforced strict validation rules for:
+
+  * `{{input}}` in judge prompts
+  * `{{goal}}` and `{{experience}}` in lead prompts
+  * `{{TRANSCRIPT}}` in wrapper templates
+* Validation applied at:
+
+  * Persona creation/update (`PersonaAdminService`)
+  * Bot config updates (`EfBotConfigurationCommand`)
+  * Runtime safety checks in `PromptBuilder`
+
+---
+
+### Prompt Versioning System
+
+* Introduced **`PromptVersions` table** to track historical prompt changes.
+* Implemented automatic version recording:
+
+  * On full persona updates (`EfPersonaRepository`)
+  * On judge/lead updates (`EfBotConfigurationCommand`)
+* Stored:
+
+  * Previous prompt content
+  * Prompt type (System, Judge, Lead)
+  * Version number (incremental)
+  * Timestamp
+
+---
+
+### Observability (Phase 3)
+
+#### Prompt Hashing
+
+* Implemented **SHA256 hashing** of final prompts.
+* Avoided logging full prompt content for security and performance.
+
+#### Structured Logging
+
+Added logs across layers:
+
+* **PromptBuilder**
+
+  * PromptHash
+  * Transcript length
+  * Final prompt length
+  * Wrapper name
+
+* **JudgeUseCase**
+
+  * ConversationId
+  * BotId
+  * PersonaId
+  * PromptHash
+  * PromptVersion (corrected to current = max + 1)
+  * PathType (full / simple)
+
+* **AiClient**
+
+  * Endpoint
+  * Payload size
+  * Latency
+  * Status (success/failure)
+  * PromptHash
+
+---
+
+### Refactoring Improvements
+
+* Introduced **`PromptBuildResult`** to eliminate duplicate hashing.
+* Centralized hash generation in `PromptBuilder`.
+* Maintained backward compatibility with minimal API changes.
+
+---
+
+## 3. Technical Details
+
+* **Backend:** .NET (ASP.NET Core)
+* **ORM:** Entity Framework Core
+* **Database:** SQLite (development)
+* **Architecture:**
+
+  * Clean architecture (Application / Domain / Infrastructure)
+  * Repository pattern
+  * Service layer for business logic
+* **Key Patterns:**
+
+  * Write-boundary versioning (Infrastructure layer)
+  * Structured logging with `ILogger`
+  * Fail-fast validation
+  * Immutable prompt hashing (SHA256)
+
+---
+
+## 4. Current State
+
+### Fully Working
+
+* Prompt validation across all critical paths
+* Prompt versioning with history tracking
+* Correct version calculation (`current = max + 1`)
+* Full observability pipeline:
+
+  * Hash-based traceability
+  * AI call visibility (latency, status)
+  * Context-rich logs (Bot, Persona, Conversation)
+
+### Stable Behavior
+
+* No breaking changes to existing APIs
+* All unit tests passing
+* Backward-compatible logging and AI client interfaces
+
+---
+
+## 5. Pending Tasks / Next Steps
+
+### High Priority
+
+* Add **BotId + PromptVersion indexing** for analytics queries
+* Expose **PromptVersion + Hash in admin UI**
+
+### Medium Priority
+
+* Implement **Prompt Replay System**
+
+  * Re-run AI calls using historical versions
+* Add **A/B testing support for prompts**
+
+### Advanced
+
+* Handle **version race conditions** (concurrent updates)
+* Introduce **distributed tracing (Activity/CorrelationId)**
+
+---
+
+## 6. Important Notes
+
+* `PromptVersions` stores **only previous versions**, not current state.
+
+  * Current version = `max(version) + 1`
+* Hash is **deterministic and safe**, but:
+
+  * Cannot reconstruct prompt without DB + logic
+* Two execution paths exist:
+
+  * Full prompt (with persona + wrapper)
+  * Simple transcript-only
+* Observability is **asymmetric but traceable** across both paths
+* No full prompt logging (intentional for security/performance)
+
+---
+
+## 7. How to Continue in Next Chat
+
+Continue by extending observability into **execution replay and analytics**:
+
+* Implement a **Prompt Replay feature**:
+
+  * Given PromptHash + Version → reconstruct and re-run
+* Add **metrics collection**:
+
+  * Track outcomes per PromptVersion
+* Optionally design a **UI layer** to visualize:
+
+  * Prompt history
+  * Performance per version
+
+2026-04-07 23:46
+
+Here is your structured technical summary:
+
+---
+
+## 1. Project Context
+
+* The project is an **AI Employee Platform** that orchestrates AI-driven decision-making (e.g., judging conversations and classifying leads).
+* This part focuses on the **Judge system**, including:
+
+  * Prompt construction (Persona + Behavior)
+  * Execution paths (FULL vs SIMPLE)
+  * Debug/observability layer for inspecting AI behavior
+
+**Main goal:**
+Provide a **fully observable, deterministic, and debuggable AI judging pipeline** with consistent behavior across execution and admin preview.
+
+---
+
+## 2. What Was Implemented
+
+* **Type-safe prompt mapping**
+
+  * Removed reflection from `BehaviorPromptMapper`
+  * Direct property access for Judge/Lead instructions and schemas
+
+* **Prompt Debug System**
+
+  * Created `PromptDebugService` + endpoint `/admin/debug/judge`
+  * Returns:
+
+    * Effective prompt
+    * Prompt source (Persona/Behavior)
+    * Tokens presence
+    * Schema
+    * Context (Bot/Persona/Behavior/Channel)
+
+* **Full Debug Panel (UI)**
+
+  * Integrated into `TestPage.jsx`
+  * Displays:
+
+    * Prompt preview
+    * Tokens
+    * Schema
+    * Context
+    * Response (latency, hash, parsed/raw)
+
+* **Single-execution architecture (Judge)**
+
+  * Implemented `JudgeExecutionService`
+  * Eliminates double AI execution
+  * Returns:
+
+    * Business result (winner/reason)
+    * Debug data (prompt, hash, latency, raw/parsed)
+
+* **Shared execution context**
+
+  * Introduced `JudgeExecutionContext`
+  * Centralized FULL/SIMPLE logic in `JudgeUseCase.BuildExecutionContextAsync`
+
+* **FULL mode enablement**
+
+  * `AiOptions.UseFullJudgePrompt = true`
+  * Synthetic conversation support for admin flows
+  * FULL prompt now works without DB conversation
+
+* **Debug consistency fix**
+
+  * Refactored `PromptDebugService` to reuse `JudgeUseCase`
+  * Removed duplicated FULL/SIMPLE logic
+  * Preview now reflects real execution
+
+* **Lead flow parity**
+
+  * Implemented `LeadExecutionService`
+  * Added `/admin/test/lead-with-debug`
+  * Introduced `LeadExecutionContext`
+  * Split debug DTO into:
+
+    * `JudgeDebugResponse`
+    * `LeadDebugResponse`
+
+* **Raw response tracing**
+
+  * Added `AiDebugContext` (AsyncLocal)
+  * Captures raw AI responses without changing interfaces
+
+* **Admin UI improvements**
+
+  * Debug panel UX polish (copy, scroll, sections)
+  * Mode switch (Judge / Lead)
+  * Persona/Behavior selectors
+  * Mode persistence
+
+---
+
+## 3. Technical Details
+
+* **Backend**
+
+  * .NET (Application + Infrastructure + API layers)
+  * Clean Architecture principles
+  * Dependency Injection
+  * AsyncLocal for debug tracing
+
+* **Frontend**
+
+  * React (single-page admin UI)
+  * Axios API client with `X-Admin-Key`
+  * Local state via `useState`
+
+* **Key patterns**
+
+  * **Single source of truth** (execution context reused)
+  * **Decorator-like debug capture** (non-invasive)
+  * **Separation of concerns**
+
+    * Prompt building
+    * Execution
+    * Debug/inspection
+  * **Additive changes only** (no breaking contracts)
+
+* **Execution modes**
+
+  * SIMPLE → raw transcript
+  * FULL → Persona + Behavior + Wrapper + Transcript
+
+---
+
+## 4. Current State
+
+### Working
+
+* FULL mode execution pipeline
+* Debug preview matches execution logic
+* Single AI call with full debug capture
+* Admin UI fully integrated with debug panel
+* Lead and Judge flows both support debug execution
+* Prompt observability (prompt, schema, tokens, hash, latency)
+
+### Partially Complete
+
+* Judge output contract is inconsistent:
+
+  * AI returns real participant names (e.g., "amin")
+  * UI/backend sometimes expect role-based names (Alice/Bob)
+
+---
+
+## 5. Pending Tasks / Next Steps
+
+1. **Define Judge Output Contract (critical)**
+
+   * Standardize winner representation (role vs name vs structured object)
+   * Align prompt, AI output, backend, and UI
+
+2. **Fix winner mapping**
+
+   * Remove incorrect Alice/Bob assumptions
+   * Ensure UI reflects actual AI output
+
+3. **Improve prompt determinism**
+
+   * Introduce scoring-based evaluation (optional)
+   * Reduce ambiguity in reasoning
+
+4. **Enhance validation layer**
+
+   * Validate AI JSON response against schema
+   * Ensure winner exists in participants
+
+5. **Optional improvements**
+
+   * Add confidence score
+   * Add structured scoring per participant
+   * Persist debug traces if needed
+
+---
+
+## 6. Important Notes
+
+* FULL mode depends on conversation context:
+
+  * Synthetic conversations are used for admin/testing
+  * Production remains strict
+
+* Debug system is now **accurate and reliable**
+
+  * Preview = Execution (no drift)
+
+* Current critical issue:
+
+  * **Mismatch between AI output and UI mapping**
+  * Root cause: missing formal contract
+
+* Raw response capture uses AsyncLocal:
+
+  * Safe for current usage
+  * May need refinement under high concurrency
+
+---
+
+## 7. How to Continue in Next Chat
+
+Continue by:
+
+> Designing and implementing a **production-grade Judge Output Contract**, aligning:
+>
+> * Prompt instructions
+> * AI JSON output
+> * Backend DTOs
+> * UI rendering
+
+Focus first on eliminating the **winner mapping inconsistency**, then improve determinism and validation.
+
+2026-04-08 22:40
+
+## 1. Project Context
+
+* This module is part of an **AI Employee Platform** that enables configurable AI bots with behaviors such as *judge*, *lead capture*, *chat*, and *onboarding*.
+* The goal of this part was to build a **Real Flow Testing system** inside the Admin Console that simulates real production message handling:
+
+  * Uses the **actual backend pipeline**
+  * Avoids external integrations (e.g., Telegram)
+  * Avoids database side effects
+  * Provides deterministic, debuggable outputs
+
+---
+
+## 2. What Was Implemented
+
+### Real Flow Test Execution
+
+* Implemented a new endpoint:
+
+  * `POST /admin/test/real-flow`
+* Introduced `RealFlowTestService` to:
+
+  * Accept multi-line input
+  * Split input into sequential messages
+  * Simulate real user conversation
+  * Execute the **real `IncomingMessageHandler` pipeline**
+
+### Message Simulation
+
+* Each input line is processed as an independent message:
+
+  * Preserves order
+  * Maintains shared context across messages
+* Metadata is dynamically generated per message (e.g., `FirstName` extraction)
+
+### Outgoing Message Interception
+
+* Implemented `CapturingOutgoingClientDecorator`:
+
+  * Wraps `IOutgoingMessageClient`
+  * Captures messages instead of sending them externally
+  * Activated via `RealFlowTestContext.IsActive`
+
+### Flow Tracking
+
+* Introduced `IFlowTracker` + `FlowTracker`:
+
+  * Tracks which flow executed (`judge`, `lead`, `chat`, `onboarding`)
+  * Writes only when test mode is active
+
+### Command Parsing Fix
+
+* Updated command detection logic:
+
+  * Scans entire message for `/command`
+  * Supports:
+
+    * Multi-line inputs
+    * Inline commands
+    * `/command@bot` format
+
+### In-Memory Conversation Layer (Critical Fix)
+
+* Implemented `InMemoryConversationRepository`:
+
+  * Uses `ConcurrentDictionary<string, Conversation>`
+  * Replaces EF Core during test execution
+* Introduced `TestScopedConversationRepository` (decorator):
+
+  * Routes calls to:
+
+    * EF repository in production
+    * In-memory repository in test mode
+
+### Context-Based Dependency Override
+
+* Extended `RealFlowTestContext`:
+
+  * Added `ConversationOverride`
+* `RealFlowTestService`:
+
+  * Creates a single in-memory repository per test run
+  * Injects it into child scopes
+  * Ensures shared conversation state across messages
+
+### Admin UI Integration
+
+* Added **"Real Flow" mode** in Test UI:
+
+  * Input: multi-line conversation
+  * Output:
+
+    * Flow executed
+    * Captured messages
+    * Latency
+    * Error (if any)
+
+---
+
+## 3. Technical Details
+
+### Technologies
+
+* Backend: **.NET (ASP.NET Core)**
+* ORM: **Entity Framework Core**
+* Frontend: **React**
+* AI: Local model (e.g., Ollama via `IAiClient`)
+
+### Key Patterns
+
+* **Decorator Pattern**
+
+  * Used for:
+
+    * `IOutgoingMessageClient`
+    * `IConversationRepository`
+* **Scoped Context Pattern**
+
+  * `RealFlowTestContext` controls test mode behavior
+* **Dependency Injection Override**
+
+  * Runtime switching between EF and in-memory implementations
+* **Multi-step Simulation Loop**
+
+  * Sequential `HandleAsync` calls to mimic real conversations
+
+### Architectural Decisions
+
+* No modification to core domain logic (`IncomingMessageHandler`)
+* Test mode is **fully isolated** via DI and context flags
+* Database is **bypassed entirely** during test execution
+* Single in-memory repository instance per test ensures continuity
+
+---
+
+## 4. Current State
+
+### Fully Working
+
+* Real flow execution using production pipeline
+* Multi-message conversation simulation
+* Command detection (robust and flexible)
+* Flow routing (judge, lead, onboarding, chat)
+* AI prompt generation and execution
+* Outgoing message capture
+* Flow tracking
+* UI integration for testing
+* No EF Core errors (DB fully bypassed in test mode)
+
+### Observed Behavior
+
+* Multiple flows (e.g., lead + judge) can execute in sequence within a single test run
+
+---
+
+## 5. Pending Tasks / Next Steps
+
+1. **Flow Priority Control**
+
+   * Ensure `/judge` overrides other flows (e.g., lead)
+   * Implement early return for command-driven flows
+
+2. **Lead Flow Validation**
+
+   * Test multi-step lead scenarios:
+
+     * Goal → Experience → Capture
+   * Validate state transitions and persistence logic (in-memory)
+
+3. **Selective Flow Execution Mode (Optional)**
+
+   * Allow forcing a specific flow (e.g., "judge only")
+
+4. **Test Isolation Enhancements**
+
+   * Optional: reset in-memory state per test explicitly
+   * Optional: add debug logs for conversation state
+
+5. **UI Improvements**
+
+   * Better visualization of message sequence
+   * Distinguish flows visually
+
+---
+
+## 6. Important Notes
+
+* The system intentionally **does not use the database in test mode** to avoid:
+
+  * EF Core tracking issues
+  * Concurrency exceptions
+  * Side effects on real data
+* `RealFlowTestContext` must remain **shared across scopes**
+
+  * Do not scope it per message
+* In-memory repository must:
+
+  * Use consistent `ExternalChatId` keys
+  * Persist messages across the entire test run
+* Command detection now:
+
+  * Supports commands anywhere in the message
+  * Currently selects the **first command found**
+* Multiple flows may execute in a single run unless explicitly controlled
+
+---
+
+## 7. How to Continue in Next Chat
+
+Continue by implementing **flow prioritization and isolation**, ensuring that command-based flows (e.g., `/judge`) override all other behaviors and execute exclusively within a test run.
+
+
+
+

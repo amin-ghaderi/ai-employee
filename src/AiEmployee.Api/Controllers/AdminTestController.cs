@@ -13,19 +13,22 @@ public sealed class AdminTestController : ControllerBase
     private readonly IPersonaRepository _personaRepository;
     private readonly IBehaviorRepository _behaviorRepository;
     private readonly ILeadExecutionService _leadExecutionService;
+    private readonly RealFlowTestService _realFlowTestService;
 
     public AdminTestController(
         IAdminTestService adminTestService,
         IJudgeExecutionService judgeExecutionService,
         IPersonaRepository personaRepository,
         IBehaviorRepository behaviorRepository,
-        ILeadExecutionService leadExecutionService)
+        ILeadExecutionService leadExecutionService,
+        RealFlowTestService realFlowTestService)
     {
         _adminTestService = adminTestService;
         _judgeExecutionService = judgeExecutionService;
         _personaRepository = personaRepository;
         _behaviorRepository = behaviorRepository;
         _leadExecutionService = leadExecutionService;
+        _realFlowTestService = realFlowTestService;
     }
 
     [HttpPost("judge")]
@@ -95,6 +98,15 @@ public sealed class AdminTestController : ControllerBase
             answerKeys,
             cancellationToken);
 
+        return Ok(result);
+    }
+
+    [HttpPost("real-flow")]
+    public async Task<ActionResult<RealFlowTestResult>> RealFlow(
+        [FromBody] RealFlowTestRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _realFlowTestService.ExecuteAsync(request, cancellationToken);
         return Ok(result);
     }
 }
