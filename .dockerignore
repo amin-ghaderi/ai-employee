@@ -19,6 +19,8 @@ ai-service/.venv/
 
 # Data / secrets
 *.db
+*.wal
+*.shm
 *.env
 .env.*
 

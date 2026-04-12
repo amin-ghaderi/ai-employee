@@ -38,7 +38,9 @@ services:
     restart: unless-stopped
 
   # ───────────────────────────────────────────────
-  # .NET API (ASP.NET Core 10)
+  # .NET API (ASP.NET Core 10) — published image, no source bind mount.
+  # Avoids dotnet watch + PollingDirectoryWatcher duplicate-key crashes.
+  # For bind-mounted development see Dockerfile.dev + comment below (avoid dotnet watch in Docker).
   # ───────────────────────────────────────────────
   api:
     build:
@@ -47,22 +49,24 @@ services:
     ports:
       - "5155:5155"
     volumes:
-      - .:/app
-      - nuget-cache:/root/.nuget/packages
+      - api-data:/app/data
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:5155
       - Ai__BaseUrl=http://ai-service:8000
-      - ConnectionStrings__DefaultConnection=Data Source=aiemployee.db
+      # SQLite on a named volume path (writable, survives restarts)
+      - ConnectionStrings__DefaultConnection=Data Source=/app/data/aiemployee.db
       - Admin__ApiKey=${ADMIN_API_KEY:-your-secret-key}
       # Telegram webhooks: set to your public HTTPS origin (ngrok, tunnel, or prod domain). No trailing slash.
       # Example (uncomment and set): - App__PublicBaseUrl=https://abcd-1234.ngrok-free.app
       # Production: use ASPNETCORE_ENVIRONMENT=Production and HTTPS-only PublicBaseUrl (see docs/CONFIGURATION.md).
       # Telegram: prefer BotIntegrations (ExternalId) per bot; optional legacy: Telegram__BotToken=... in override file.
-      - DOTNET_USE_POLLING_FILE_WATCHER=true
     depends_on:
       - ai-service
     restart: unless-stopped
+
+  # Bind-mounted API + hot reload: run on the host (`dotnet watch run --project src/AiEmployee.Api`)
+  # or build `src/AiEmployee.Api/Dockerfile.dev` manually — do not combine with this `api` service on the same port.
 
   # ───────────────────────────────────────────────
   # Ollama LLM inference server
@@ -102,3 +106,4 @@ services:
 volumes:
   ollama-data:
   nuget-cache:
+  api-data:
