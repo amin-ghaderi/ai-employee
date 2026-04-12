@@ -55,7 +55,10 @@ services:
       - Ai__BaseUrl=http://ai-service:8000
       - ConnectionStrings__DefaultConnection=Data Source=aiemployee.db
       - Admin__ApiKey=${ADMIN_API_KEY:-your-secret-key}
-      - Telegram__BotToken=${TELEGRAM_BOT_TOKEN:-}
+      # Telegram webhooks: set to your public HTTPS origin (ngrok, tunnel, or prod domain). No trailing slash.
+      # Example (uncomment and set): - App__PublicBaseUrl=https://abcd-1234.ngrok-free.app
+      # Production: use ASPNETCORE_ENVIRONMENT=Production and HTTPS-only PublicBaseUrl (see docs/CONFIGURATION.md).
+      # Telegram: prefer BotIntegrations (ExternalId) per bot; optional legacy: Telegram__BotToken=... in override file.
       - DOTNET_USE_POLLING_FILE_WATCHER=true
     depends_on:
       - ai-service

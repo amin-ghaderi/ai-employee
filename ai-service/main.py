@@ -42,6 +42,34 @@ class LeadClassificationResponse(BaseModel):
     potential: str
 
 
+class ChatRequest(BaseModel):
+    user_id: str
+    prompt: str
+
+
+class ChatResponse(BaseModel):
+    response: str
+
+
+@app.post("/ai/chat", response_model=ChatResponse)
+async def chat(request: ChatRequest) -> ChatResponse:
+    """Plain assistant completion for the chat flow (Ollama /api/generate)."""
+    try:
+        if not request.user_id or not request.user_id.strip():
+            raise HTTPException(status_code=400, detail="user_id is required")
+
+        if not request.prompt or not request.prompt.strip():
+            raise HTTPException(status_code=400, detail="prompt is required")
+
+        user_id = request.user_id.strip()
+        _log.info("chat | user_id=%s", user_id)
+
+        text = await llama_client.chat_plain(request.prompt)
+        return ChatResponse(response=text)
+    except JudgeOutputError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+
+
 @app.post("/ai/lead/classify", response_model=LeadClassificationResponse)
 async def classify_lead(request: LeadClassificationRequest) -> LeadClassificationResponse:
     try:

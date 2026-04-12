@@ -7,4 +7,6 @@ public sealed record JudgeBotConfiguration(
     Persona Persona,
     Behavior Behavior,
     LanguageProfile LanguageProfile,
-    PromptTemplate WrapperTemplate);
+    PromptTemplate WrapperTemplate,
+    /// <summary>Telegram Bot API token from BotIntegrations.ExternalId for telegram integrations; otherwise null.</summary>
+    string? TelegramBotToken = null);

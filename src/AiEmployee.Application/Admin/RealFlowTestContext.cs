@@ -13,6 +13,11 @@ public sealed class RealFlowTestContext
     public string? FlowExecuted { get; set; }
 
     public IConversationRepository? ConversationOverride { get; set; }
+
+    /// <summary>
+    /// When Real Flow is active, set when AI pipeline fails but the handler sends a generic user message instead of throwing.
+    /// </summary>
+    public string? PipelineError { get; set; }
 }
 
 public sealed record CapturedOutgoingMessage(

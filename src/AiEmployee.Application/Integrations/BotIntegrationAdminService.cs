@@ -24,7 +24,7 @@ public sealed class BotIntegrationAdminService : IBotIntegrationAdminService
         BotIntegrationRequestValidator.Validate(request);
         await EnsureBotAllowedAsync(request.BotId, cancellationToken).ConfigureAwait(false);
 
-        var channel = request.Channel.Trim().ToLowerInvariant();
+        var channel = BotIntegrationChannelNames.NormalizeChannelValue(request.Channel);
         var externalId = request.ExternalId.Trim();
         if (string.IsNullOrEmpty(channel) || string.IsNullOrEmpty(externalId))
             throw new BotIntegrationValidationException(new[]
@@ -111,7 +111,8 @@ public sealed class BotIntegrationAdminService : IBotIntegrationAdminService
         if (current is null)
             throw new KeyNotFoundException($"No bot integration was found for id '{id}'.");
 
-        var updated = new BotIntegration(current.Id, current.BotId, current.Channel, current.ExternalId, isEnabled: true);
+        var channel = BotIntegrationChannelNames.NormalizeChannelValue(current.Channel);
+        var updated = new BotIntegration(current.Id, current.BotId, channel, current.ExternalId, isEnabled: true);
         await _integrationRepository.UpdateAsync(updated, cancellationToken).ConfigureAwait(false);
 
         var reloaded = await _integrationRepository.GetByIdAsync(id, cancellationToken).ConfigureAwait(false)
@@ -125,7 +126,8 @@ public sealed class BotIntegrationAdminService : IBotIntegrationAdminService
         if (current is null)
             throw new KeyNotFoundException($"No bot integration was found for id '{id}'.");
 
-        var updated = new BotIntegration(current.Id, current.BotId, current.Channel, current.ExternalId, isEnabled: false);
+        var channel = BotIntegrationChannelNames.NormalizeChannelValue(current.Channel);
+        var updated = new BotIntegration(current.Id, current.BotId, channel, current.ExternalId, isEnabled: false);
         await _integrationRepository.UpdateAsync(updated, cancellationToken).ConfigureAwait(false);
 
         var reloaded = await _integrationRepository.GetByIdAsync(id, cancellationToken).ConfigureAwait(false)

@@ -2,8 +2,9 @@ import { useState } from 'react';
 import BehaviorsPage from './BehaviorsPage.jsx';
 import BotsPage from './BotsPage.jsx';
 import ConfigPage from './ConfigPage.jsx';
-import IntegrationsPage from './IntegrationsPage.jsx';
+import IntegrationsPage from './pages/IntegrationsPage.jsx';
 import PersonasPage from './PersonasPage.jsx';
+import SettingsPage from './pages/SettingsPage.jsx';
 import TestPage from './TestPage.jsx';
 
 export default function App() {
@@ -30,6 +31,9 @@ export default function App() {
         <button type="button" onClick={() => setPage('integrations')}>
           Integrations
         </button>
+        <button type="button" onClick={() => setPage('settings')}>
+          Settings
+        </button>
       </div>
       {page === 'test' && <TestPage />}
       {page === 'config' && <ConfigPage />}
@@ -37,6 +41,7 @@ export default function App() {
       {page === 'personas' && <PersonasPage />}
       {page === 'behaviors' && <BehaviorsPage />}
       {page === 'integrations' && <IntegrationsPage />}
+      {page === 'settings' && <SettingsPage />}
     </div>
   );
 }

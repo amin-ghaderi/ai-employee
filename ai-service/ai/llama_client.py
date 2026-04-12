@@ -240,3 +240,48 @@ class LlamaClient:
             },
             ensure_ascii=False,
         )
+
+    async def chat_plain(self, prompt: str) -> str:
+        """
+        General assistant chat: full prompt to Ollama; return plain assistant text.
+        Used by POST /ai/chat (called from .NET AiClient.ChatAsync).
+        """
+        p = prompt.strip()
+        if not p:
+            raise JudgeOutputError("Empty chat prompt")
+
+        logger.info(
+            "chat_execute | prompt_preview=%s",
+            _truncate(p, _PROMPT_LOG_MAX_CHARS),
+        )
+
+        payload = {
+            "model": OLLAMA_MODEL,
+            "prompt": p,
+            "stream": False,
+        }
+
+        async with httpx.AsyncClient(timeout=OLLAMA_TIMEOUT) as client:
+            ollama_body = await _post_ollama_generate(client, payload)
+
+        if not isinstance(ollama_body, dict) or "response" not in ollama_body:
+            logger.error(
+                "ollama_response_missing_field | keys=%s",
+                list(ollama_body.keys()) if isinstance(ollama_body, dict) else type(ollama_body),
+            )
+            raise JudgeOutputError("Ollama response missing 'response' field")
+
+        raw_model_text = ollama_body["response"]
+        if not isinstance(raw_model_text, str):
+            raise JudgeOutputError("Ollama 'response' must be a string")
+
+        text = raw_model_text.strip()
+        if not text:
+            raise JudgeOutputError("Empty model chat response")
+
+        logger.info(
+            "chat_llm_response | response_preview=%s",
+            _truncate(text, _RESPONSE_LOG_MAX_CHARS),
+        )
+
+        return text

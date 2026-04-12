@@ -4,6 +4,7 @@ using AiEmployee.Application.BotConfig;
 using AiEmployee.Application.Interfaces;
 using AiEmployee.Application.Prompting;
 using AiEmployee.Application.Services;
+using AiEmployee.Application.Telegram;
 using AiEmployee.Application.UseCases;
 using AiEmployee.Domain.BotConfiguration;
 using AiEmployee.Domain.Entities;
@@ -26,6 +27,7 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
     private readonly AssistantUseCase _assistantUseCase;
     private readonly IFlowTracker _flowTracker;
     private readonly RealFlowTestContext _testContext;
+    private readonly IActiveTelegramBotContext _activeTelegramBotContext;
     private readonly ILogger<IncomingMessageHandler> _logger;
 
     public IncomingMessageHandler(
@@ -42,6 +44,7 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
         AssistantUseCase assistantUseCase,
         IFlowTracker flowTracker,
         RealFlowTestContext testContext,
+        IActiveTelegramBotContext activeTelegramBotContext,
         ILogger<IncomingMessageHandler> logger)
     {
         _judgeUseCase = judgeUseCase;
@@ -57,6 +60,7 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
         _assistantUseCase = assistantUseCase;
         _flowTracker = flowTracker;
         _testContext = testContext;
+        _activeTelegramBotContext = activeTelegramBotContext;
         _logger = logger;
     }
 
@@ -73,8 +77,14 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
 
         try
         {
-            Console.WriteLine("WEBHOOK HIT");
-            Console.WriteLine($"TEXT RECEIVED: {text}");
+            var integrationId = Meta(message.Metadata, IncomingMessageMetadataKeys.IntegrationExternalId);
+            _logger.LogInformation(
+                "IncomingMessageHandler | channel={Channel} userId={UserId} chatId={ChatId} textLength={TextLength} hasIntegrationExternalId={HasIntegration}",
+                message.Channel,
+                messageUserId,
+                conversationId,
+                text?.Length ?? 0,
+                !string.IsNullOrWhiteSpace(integrationId));
 
             var user = await _userRepository.GetByIdAsync(messageUserId)
                 ?? new User(messageUserId);
@@ -82,6 +92,10 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
             user.RegisterMessage();
 
             var judgeBotConfig = await _botResolver.ResolveAsync(message);
+            _activeTelegramBotContext.Token = string.IsNullOrWhiteSpace(judgeBotConfig.TelegramBotToken)
+                ? null
+                : judgeBotConfig.TelegramBotToken.Trim();
+
             var behavior = judgeBotConfig.Behavior;
             languageProfile = judgeBotConfig.LanguageProfile;
 
@@ -93,7 +107,7 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
                 user.Id,
                 user.MessagesCount);
 
-            var tokens = text.Replace("\n", " ")
+            var tokens = (text ?? string.Empty).Replace("\n", " ")
                 .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             var commandToken = tokens
                 .Select(t => t.Split('@')[0])
@@ -103,9 +117,6 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
                     commandToken,
                     behavior.JudgeCommandPrefix,
                     StringComparison.OrdinalIgnoreCase);
-            if (isJudgeCommand)
-                Console.WriteLine("JUDGE COMMAND DETECTED");
-
             async Task RunAutomationAsync()
             {
                 if (_testContext.IsActive && _testContext.DisableAutomation)
@@ -145,11 +156,9 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
             if (shouldRunJudge)
             {
                 _flowTracker.Set("judge");
-                Console.WriteLine("ENTERED JUDGE BLOCK");
                 var existing = await _conversationRepository.GetByIdAsync(conversationId);
                 if (existing is null || existing.Messages.Count == 0)
                 {
-                    Console.WriteLine("SENDING OUTGOING RESPONSE");
                     await _outgoingClient.SendMessageAsync(
                         message.Channel,
                         message.ExternalChatId,
@@ -170,7 +179,6 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
                     return;
                 }
 
-                Console.WriteLine("CALLING JUDGE USE CASE");
                 var conversationResult = await _judgeUseCase.Execute(
                     conversationId,
                     messageUserId,
@@ -182,7 +190,6 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
                     conversationResult.Winner,
                     conversationResult.Reason);
 
-                Console.WriteLine("SENDING OUTGOING RESPONSE");
                 var judgeReply = languageProfile.JudgeResultTemplate
                     .Replace("{Reason}", conversationResult.Reason, StringComparison.Ordinal)
                     .Replace("{Winner}", conversationResult.Winner, StringComparison.Ordinal);
@@ -314,12 +321,35 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
                     message.ExternalChatId,
                     response);
             }
+            else
+            {
+                _logger.LogWarning(
+                    "No outbound reply for this message | EnableChat={EnableChat} EnableLead={EnableLead} shouldRunLead={RunLead} shouldRunChat={RunChat} isJudgeCommand={IsJudge} onboardingFirstOnly={OnboardingFirst} userMessagesCount={UserMsgCount} behaviorId={BehaviorId}",
+                    behavior.EnableChat,
+                    behavior.EnableLead,
+                    shouldRunLead,
+                    shouldRunChat,
+                    isJudgeCommand,
+                    behavior.OnboardingFirstMessageOnly,
+                    user.MessagesCount,
+                    behavior.Id);
+            }
 
             await RunAutomationAsync();
         }
         catch (AiServiceException ex)
         {
-            _logger.LogError(ex, "AI service request failed");
+            _logger.LogError(
+                ex,
+                "AI service request failed (inner: {Inner})",
+                ex.InnerException?.Message ?? "(none)");
+
+            if (_testContext.IsActive)
+            {
+                _testContext.PipelineError = ex.InnerException is { } inner
+                    ? $"{ex.Message} [{inner.GetType().Name}: {inner.Message}]"
+                    : ex.Message;
+            }
 
             try
             {
@@ -339,6 +369,10 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
         {
             _logger.LogError(ex, "Incoming message handling failed");
             throw;
+        }
+        finally
+        {
+            _activeTelegramBotContext.Token = null;
         }
     }
 

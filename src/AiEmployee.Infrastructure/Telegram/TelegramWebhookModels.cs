@@ -4,6 +4,9 @@ namespace AiEmployee.Infrastructure.Telegram;
 
 public class TelegramUpdate
 {
+    [JsonPropertyName("update_id")]
+    public long UpdateId { get; set; }
+
     [JsonPropertyName("message")]
     public TelegramMessage? Message { get; set; }
 }

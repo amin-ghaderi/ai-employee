@@ -291,12 +291,20 @@ public class AiClient : IAiClient
         {
             try
             {
-                var response = await _httpClient.PostAsJsonAsync(
+                using var response = await _httpClient.PostAsJsonAsync(
                     $"{_baseUrl}/ai/chat",
                     new { user_id = userId, prompt });
-                response.EnsureSuccessStatusCode();
-
                 var raw = await response.Content.ReadAsStringAsync();
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogError(
+                        "AI chat HTTP {StatusCode} (attempt {Attempt}). Response body preview: {BodyPreview}",
+                        (int)response.StatusCode,
+                        attempt + 1,
+                        TruncateForLog(raw, 2000));
+                    response.EnsureSuccessStatusCode();
+                }
+
                 if (string.IsNullOrWhiteSpace(raw))
                     throw new AiServiceException("AI returned empty chat response.");
 
@@ -329,6 +337,13 @@ public class AiClient : IAiClient
         }
 
         throw new AiServiceException("AI chat request failed.");
+    }
+
+    private static string TruncateForLog(string? text, int maxChars)
+    {
+        if (string.IsNullOrEmpty(text) || text.Length <= maxChars)
+            return text ?? string.Empty;
+        return text[..maxChars] + "…[truncated]";
     }
 
     private static string ParseChatResponse(string raw)

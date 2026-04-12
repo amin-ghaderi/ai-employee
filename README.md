@@ -196,17 +196,20 @@ dotnet run --project src/AiEmployee.Api
 
 **Default bot configuration is seeded automatically on startup** (after migrations) when applicable—see **`BotConfigurationSeeder`**. Ensure the host can write to the configured SQLite path (or your overridden connection string).
 
-**5. Webhook**
+**5. Webhook (Telegram)**
 
-Point your messaging provider’s webhook URL at the deployed API route wired to your **`IChannelAdapter`**. Use the provider’s API to set and verify the webhook and TLS requirements.
+- **Multi-bot:** register Telegram to **`{App:PublicBaseUrl}/api/telegram/webhook/{BotIntegrations.Id}`** using the Admin API or **admin-ui** (Integrations → **Sync Webhook**).  
+- **Docs:** [`docs/TELEGRAM_WEBHOOKS.md`](docs/TELEGRAM_WEBHOOKS.md), [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).  
 
 **6. Configuration**
 
 - Connection string under **`ConnectionStrings`**  
-- AI options under **`Ai`** (e.g. full judge prompt flag)  
-- Channel credentials under the appropriate settings section (bound in **`Program.cs`**)  
+- **`App:PublicBaseUrl`** — public origin (no trailing slash) for **Telegram webhook URL** generation and admin diagnostics; **HTTPS required in Production** when set (see `docs/CONFIGURATION.md`).  
+- AI options under **`Ai`** (e.g. **`BaseUrl`**, full judge prompt flag)  
+- **`Admin:ApiKey`** — required for all **`/admin/**`** HTTP calls (**`X-Admin-Key`** header).  
+- Telegram: prefer **`BotIntegrations`** (`channel = telegram`, **`ExternalId`** = bot token); optional legacy **`Telegram:BotToken`**.  
 
-Prefer **environment variables** or **user secrets** for non-local environments; override `appsettings` with standard ASP.NET Core configuration precedence.
+Prefer **environment variables** or **user secrets** for non-local environments; override `appsettings` with standard ASP.NET Core configuration precedence. **Example JSON** files live under **`docs/examples/`** (copy—do not commit secrets).
 
 ---
 
@@ -223,17 +226,56 @@ Prefer **environment variables** or **user secrets** for non-local environments;
 
 ---
 
-## 11. Future Extensions
+## 11. Telegram webhooks, deployment & operations (Phase 7)
+
+| Document | Contents |
+|----------|----------|
+| [`docs/TELEGRAM_WEBHOOKS.md`](docs/TELEGRAM_WEBHOOKS.md) | Webhook architecture, multi-bot, Admin API, admin-ui, security notes |
+| [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Development (ngrok), production domain, Docker stack |
+| [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) | **`App__PublicBaseUrl`**, **`Ai__BaseUrl`**, **`Admin__ApiKey`**, tokens in DB |
+| [`docs/OPERATIONAL_CHECKLIST.md`](docs/OPERATIONAL_CHECKLIST.md) | Go-live checklist |
+| [`docs/TECHNICAL_SUMMARY.md`](docs/TECHNICAL_SUMMARY.md) | Short executive overview |
+| [`docs/examples/`](docs/examples/) | Example `appsettings` and `.env` snippets |
+
+### Setup (quick)
+
+1. Run **ai-service**, **.NET API**, apply migrations (or rely on startup migrate—see §9).  
+2. Set **`App:PublicBaseUrl`** to your **public HTTPS** URL (ngrok or real domain).  
+3. Create **`BotIntegration`** rows (`telegram`, token in **`ExternalId`**).  
+4. Call **Sync Webhook** per integration; verify **`webhook-status`**.  
+5. For **admin-ui**: `cd admin-ui && npm install && npm run dev` — set **`VITE_API_URL`**, **`VITE_ADMIN_KEY`** in **`.env`**.
+
+### Testing
+
+```bash
+dotnet test AiEmployee.sln
+```
+
+Integration tests cover **Admin `X-Admin-Key`** behavior and public **`/api/telegram/webhook`** routes. Live Telegram + ngrok checks are manual—see **`docs/DEPLOYMENT.md`**.
+
+### Troubleshooting
+
+| Symptom | Check |
+|---------|--------|
+| **401** on `/admin/...` | **`X-Admin-Key`** matches **`Admin:ApiKey`**; key configured in Docker/env. |
+| Sync webhook fails / **502** | **`App:PublicBaseUrl`** reachable over **HTTPS** from the internet; URL matches what you paste into Telegram. |
+| **400** / HTTPS error in Production | **`App:PublicBaseUrl`** must be **`https://`** when `ASPNETCORE_ENVIRONMENT=Production`. |
+| **`not_registered` / `mismatch`** | Run **Sync Webhook**; compare **`getWebhookInfo`** URL to `{PublicBaseUrl}/api/telegram/webhook/{id}`. |
+| No reply from bot | AI **`Ai:BaseUrl`**, integration **enabled**, logs under **`Telegram webhook:`** and **`IncomingMessageHandler`**. |
+
+---
+
+## 12. Future Extensions
 
 - Additional **channels** (e.g. web chat, mobile push) via new adapters and senders  
-- **Admin UI** or **bot builder** for editing personas, behaviors, and templates without deployments  
+- **Admin UI** or **bot builder** for editing personas, behaviors, and templates without deployments *(admin-ui for integrations & webhooks exists; broader editing may expand)*  
 - Richer **AI** features: memory, RAG, tool calling, multi-model routing  
 - **Observability**: structured logging, metrics, tracing across .NET and Python  
 - **Horizontal scale**: outbox pattern, queues, and idempotent webhook processing  
 
 ---
 
-## 12. Design Principles
+## 13. Design Principles
 
 - **Channel-agnostic core** — The center speaks **`IncomingMessage`** and string **channels**, not vendor APIs.  
 - **Data-driven behavior** — Persona, behavior, language, and templates are persisted and versionable, not buried in code.  
@@ -244,13 +286,13 @@ Prefer **environment variables** or **user secrets** for non-local environments;
 
 ---
 
-## 13. Single Source of Truth
+## 14. Single Source of Truth
 
 Bot configuration is **fully data-driven**: the **database** is the **single source of truth** for bots, integrations, personas, behaviors, language profiles, and prompt templates. **Code orchestrates execution**—loading configuration, applying rules, and calling AI—but **does not duplicate** long-lived bot definition as hardcoded defaults in handlers (aside from idempotent **seeding** for first-run setup).
 
 ---
 
-## 14. Failure Handling
+## 15. Failure Handling
 
 The system favors **graceful degradation** where practical:
 

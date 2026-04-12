@@ -30,7 +30,7 @@ public sealed class EfBotConfigurationRepository : IBotConfigurationRepository
         if (bot is null)
             throw new InvalidOperationException("JudgeBot not found in database");
 
-        return await ResolveConfigurationForBotAsync(bot);
+        return await ResolveConfigurationForBotAsync(bot, explicitTelegramToken: null).ConfigureAwait(false);
     }
 
     public async Task<JudgeBotConfiguration> GetByIntegrationAsync(string channel, string externalId)
@@ -51,7 +51,7 @@ public sealed class EfBotConfigurationRepository : IBotConfigurationRepository
         var integration = await _db.BotIntegrations
             .AsNoTracking()
             .FirstOrDefaultAsync(i =>
-                i.Channel == normalizedChannel &&
+                i.Channel.Trim().ToLower() == normalizedChannel &&
                 i.ExternalId == trimmedExternalId &&
                 i.IsEnabled);
 
@@ -79,7 +79,11 @@ public sealed class EfBotConfigurationRepository : IBotConfigurationRepository
             return await GetJudgeBotAsync();
         }
 
-        return await ResolveConfigurationForBotAsync(bot);
+        var telegramToken = BotIntegrationChannelNames.IsTelegramChannel(normalizedChannel)
+            ? trimmedExternalId
+            : null;
+
+        return await ResolveConfigurationForBotAsync(bot, telegramToken).ConfigureAwait(false);
     }
 
     public async Task<JudgeBotConfiguration?> GetByBotIdAsync(Guid botId)
@@ -91,10 +95,10 @@ public sealed class EfBotConfigurationRepository : IBotConfigurationRepository
         if (bot is null)
             return null;
 
-        return await ResolveConfigurationForBotAsync(bot);
+        return await ResolveConfigurationForBotAsync(bot, explicitTelegramToken: null).ConfigureAwait(false);
     }
 
-    private async Task<JudgeBotConfiguration> ResolveConfigurationForBotAsync(Bot bot)
+    private async Task<JudgeBotConfiguration> ResolveConfigurationForBotAsync(Bot bot, string? explicitTelegramToken)
     {
         var persona = await _db.Personas
             .AsNoTracking()
@@ -117,11 +121,31 @@ public sealed class EfBotConfigurationRepository : IBotConfigurationRepository
 
         PromptTokens.ThrowIfJudgeWrapperMissingTranscriptPlaceholder(wrapperTemplate.Template);
 
+        var telegramToken = !string.IsNullOrWhiteSpace(explicitTelegramToken)
+            ? explicitTelegramToken.Trim()
+            : await ResolveTelegramTokenForBotAsync(bot.Id).ConfigureAwait(false);
+
         return new JudgeBotConfiguration(
             bot,
             persona ?? throw new InvalidOperationException("Bot Persona not found in database."),
             behavior ?? throw new InvalidOperationException("Bot Behavior not found in database."),
             languageProfile ?? throw new InvalidOperationException("Bot LanguageProfile not found in database."),
-            wrapperTemplate);
+            wrapperTemplate,
+            telegramToken);
+    }
+
+    private async Task<string?> ResolveTelegramTokenForBotAsync(Guid botId, CancellationToken cancellationToken = default)
+    {
+        var integration = await _db.BotIntegrations
+            .AsNoTracking()
+            .Where(i =>
+                i.BotId == botId &&
+                i.Channel.Trim().ToLower() == BotIntegrationChannelNames.Telegram &&
+                i.IsEnabled)
+            .OrderBy(i => i.Id)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return string.IsNullOrWhiteSpace(integration?.ExternalId) ? null : integration.ExternalId.Trim();
     }
 }

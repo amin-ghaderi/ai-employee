@@ -21,6 +21,15 @@ public sealed class AdminAuthMiddleware
     public async Task InvokeAsync(HttpContext context)
     {
         var path = context.Request.Path;
+        // Never require admin key for Telegram webhook (defense in depth if route prefixes change).
+        if (path.StartsWithSegments("/api/telegram", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWithSegments("/api/whatsapp", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWithSegments("/api/slack", StringComparison.OrdinalIgnoreCase))
+        {
+            await _next(context);
+            return;
+        }
+
         if (!path.StartsWithSegments(AdminPathPrefix, StringComparison.OrdinalIgnoreCase))
         {
             await _next(context);

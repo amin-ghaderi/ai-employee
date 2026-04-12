@@ -1,3 +1,4 @@
+using AiEmployee.Domain.BotConfiguration;
 using Microsoft.Extensions.Logging;
 
 namespace AiEmployee.Application.Messaging;
@@ -34,9 +35,22 @@ public sealed class OutgoingMessageDispatcher : IOutgoingMessageClient
         var key = channel.Trim();
         if (!_sendersByChannel.TryGetValue(key, out var sender))
         {
+            var providerKey = IntegrationProviders.TryResolveFromChannel(key);
+            if (providerKey is not null && _sendersByChannel.TryGetValue(providerKey, out var byProvider))
+                sender = byProvider;
+        }
+
+        if (sender is null)
+        {
             _logger.LogWarning("No outgoing sender registered for channel {Channel}", key);
             return;
         }
+
+        _logger.LogInformation(
+            "Outgoing message | channel={Channel} chatId={ChatId} textChars={TextChars}",
+            key,
+            externalChatId,
+            text.Length);
 
         await sender.SendAsync(externalChatId, text);
     }

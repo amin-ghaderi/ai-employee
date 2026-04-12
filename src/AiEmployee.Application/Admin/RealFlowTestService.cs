@@ -35,6 +35,7 @@ public sealed class RealFlowTestService
 
         _ctx.CapturedMessages.Clear();
         _ctx.FlowExecuted = null;
+        _ctx.PipelineError = null;
         _ctx.DisableAutomation = request.DisableAutomation;
 
         var inMemoryRepo = new InMemoryConversationRepository();
@@ -85,6 +86,8 @@ public sealed class RealFlowTestService
                 _ctx.CapturedMessages.AddRange(childCtx.CapturedMessages);
                 if (childCtx.FlowExecuted is not null)
                     _ctx.FlowExecuted = childCtx.FlowExecuted;
+                if (childCtx.PipelineError is not null)
+                    _ctx.PipelineError = childCtx.PipelineError;
             }
         }
         catch (Exception ex)
@@ -102,7 +105,7 @@ public sealed class RealFlowTestService
             FlowExecuted = _flowTracker.Get() ?? "unknown",
             Messages = _ctx.CapturedMessages.ToList(),
             LatencyMs = sw.ElapsedMilliseconds,
-            Error = error?.Message,
+            Error = error?.Message ?? _ctx.PipelineError,
         };
     }
 

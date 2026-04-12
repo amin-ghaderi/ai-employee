@@ -1,5 +1,6 @@
 using AiEmployee.Domain.BotConfiguration;
 using AiEmployee.Domain.Entities;
+using AiEmployee.Domain.Settings;
 using Microsoft.EntityFrameworkCore;
 
 namespace AiEmployee.Infrastructure.Persistence;
@@ -24,6 +25,8 @@ public sealed class AiEmployeeDbContext : DbContext
     public DbSet<LanguageProfile> LanguageProfiles => Set<LanguageProfile>();
     public DbSet<PromptTemplate> PromptTemplates => Set<PromptTemplate>();
     public DbSet<PromptVersion> PromptVersions => Set<PromptVersion>();
+
+    public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
