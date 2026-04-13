@@ -1,6 +1,8 @@
 using System.Diagnostics;
+using System.Globalization;
 using AiEmployee.Application.Interfaces;
 using AiEmployee.Application.Messaging;
+using AiEmployee.Domain.BotConfiguration;
 using AiEmployee.Domain.Entities;
 using AiEmployee.Application.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -65,7 +67,7 @@ public sealed class RealFlowTestService
                     "RealFlowTest [{Index}/{Total}]: {Line}",
                     i + 1, lines.Count, lines[i]);
 
-                var metadata = BuildTestMetadata(request, lines[i]);
+                var metadata = BuildTestMetadata(request, lines[i], i);
 
                 var message = new IncomingMessage(
                     request.Channel,
@@ -111,7 +113,8 @@ public sealed class RealFlowTestService
 
     private static Dictionary<string, string> BuildTestMetadata(
         RealFlowTestRequest request,
-        string line)
+        string line,
+        int lineOrdinal)
     {
         var colonIdx = line.IndexOf(':');
         var firstName = colonIdx > 0 ? line[..colonIdx].Trim() : "TestUser";
@@ -127,6 +130,16 @@ public sealed class RealFlowTestService
 
         if (!string.IsNullOrWhiteSpace(request.IntegrationExternalId))
             meta[IncomingMessageMetadataKeys.IntegrationExternalId] = request.IntegrationExternalId;
+
+        if (BotIntegrationChannelNames.IsTelegramChannel(request.Channel))
+        {
+            meta[IncomingMessageMetadataKeys.TelegramBotScopeKey] =
+                !string.IsNullOrWhiteSpace(request.IntegrationExternalId)
+                    ? $"realflow:{request.IntegrationExternalId.Trim().GetHashCode(StringComparison.Ordinal):X8}"
+                    : $"realflow:{request.ExternalChatId}";
+            meta[IncomingMessageMetadataKeys.TelegramUpdateId] =
+                (10_000_000L + lineOrdinal).ToString(CultureInfo.InvariantCulture);
+        }
 
         return meta;
     }

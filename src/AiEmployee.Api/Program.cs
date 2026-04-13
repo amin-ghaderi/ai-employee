@@ -80,9 +80,49 @@ builder.Services.AddScoped<IIntegrationProvider, WhatsAppIntegrationProvider>();
 builder.Services.AddScoped<IIntegrationProvider, SlackIntegrationProvider>();
 builder.Services.AddScoped<IIntegrationProviderRegistry, IntegrationProviderRegistry>();
 builder.Services.AddScoped<IIntegrationWebhookApplicationService, IntegrationWebhookApplicationService>();
+
+var provider = builder.Configuration["Database:Provider"] ?? "Sqlite";
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException(
+        "ConnectionStrings:DefaultConnection is not configured.");
+
+var usePostgres = provider.Equals("Npgsql", StringComparison.OrdinalIgnoreCase)
+    || provider.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase);
+
+if (usePostgres)
+{
+    builder.Services.AddDbContext<AiEmployeePostgresDbContext>(options =>
+    {
+        options.UseNpgsql(connectionString, npgsql =>
+        {
+            npgsql.MigrationsHistoryTable("__EFMigrationsHistory_Postgres", "public");
+            npgsql.CommandTimeout(60);
+            npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(2), null);
+        });
+    });
+}
+
 builder.Services.AddDbContext<AiEmployeeDbContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
+{
+    if (usePostgres)
+    {
+        options.UseNpgsql(connectionString, npgsql =>
+        {
+            npgsql.CommandTimeout(60);
+            npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(2), null);
+        });
+    }
+    else
+    {
+        options.UseSqlite(connectionString, sqlite =>
+        {
+            sqlite.CommandTimeout(60);
+        });
+    }
+});
+
 builder.Services.AddScoped<EfConversationRepository>();
+builder.Services.AddScoped<ITelegramUpdateDeduplicator, EfTelegramUpdateDeduplicator>();
 builder.Services.AddScoped<IConversationRepository>(sp =>
     new TestScopedConversationRepository(
         sp.GetRequiredService<EfConversationRepository>(),
@@ -135,8 +175,21 @@ var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
+    var databaseProvider = app.Configuration["Database:Provider"] ?? "Sqlite";
+    var usePostgresStartup = databaseProvider.Equals("Npgsql", StringComparison.OrdinalIgnoreCase)
+        || databaseProvider.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase);
+    if (usePostgresStartup)
+    {
+        var postgresDb = scope.ServiceProvider.GetRequiredService<AiEmployeePostgresDbContext>();
+        await postgresDb.Database.MigrateAsync();
+    }
+    else
+    {
+        var sqliteDb = scope.ServiceProvider.GetRequiredService<AiEmployeeDbContext>();
+        await sqliteDb.Database.MigrateAsync();
+    }
+
     var db = scope.ServiceProvider.GetRequiredService<AiEmployeeDbContext>();
-    await db.Database.MigrateAsync();
     var seeder = scope.ServiceProvider.GetRequiredService<BotConfigurationSeeder>();
     await seeder.SeedAsync();
 

@@ -5,6 +5,16 @@ namespace AiEmployee.Application.Interfaces;
 public interface IConversationRepository
 {
     Task<Conversation?> GetByIdAsync(string id);
+
+    /// <summary>
+    /// Atomically appends a user message to the conversation (creates the row if missing).
+    /// Uses a database transaction; under PostgreSQL also takes a transaction-scoped advisory lock per chat id.
+    /// </summary>
+    Task AppendUserMessageAsync(
+        string conversationId,
+        Message message,
+        CancellationToken cancellationToken = default);
+
     Task SaveAsync(Conversation conversation);
 
     /// <summary>

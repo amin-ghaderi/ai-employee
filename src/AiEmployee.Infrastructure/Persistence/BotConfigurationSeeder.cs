@@ -65,9 +65,15 @@ public sealed class BotConfigurationSeeder
 
         if (!behavior.EnableJudge || !behavior.EnableChat || !behavior.EnableLead)
         {
-            await _db.Database.ExecuteSqlInterpolatedAsync(
-                $"UPDATE Behaviors SET EnableJudge = 1, EnableChat = 1, EnableLead = 1 WHERE Id = {id} AND (EnableJudge = 0 OR EnableChat = 0 OR EnableLead = 0)",
-                cancellationToken).ConfigureAwait(false);
+            await _db.Behaviors
+                .Where(b => b.Id == id && (!b.EnableJudge || !b.EnableChat || !b.EnableLead))
+                .ExecuteUpdateAsync(
+                    s => s
+                        .SetProperty(b => b.EnableJudge, true)
+                        .SetProperty(b => b.EnableChat, true)
+                        .SetProperty(b => b.EnableLead, true),
+                    cancellationToken)
+                .ConfigureAwait(false);
         }
     }
 

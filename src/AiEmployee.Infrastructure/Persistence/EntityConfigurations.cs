@@ -49,6 +49,20 @@ internal sealed class MessageConfiguration : IEntityTypeConfiguration<Message>
     {
         builder.ToTable("Messages");
         builder.HasKey(e => e.Id);
+        // Domain always assigns Guid in the ctor; never rely on store-generated keys.
+        // ValueGeneratedOnAdd (the default for Guid keys) can mis-route inserts as updates in some graphs.
+        builder.Property(e => e.Id).ValueGeneratedNever();
+    }
+}
+
+internal sealed class ProcessedTelegramUpdateConfiguration : IEntityTypeConfiguration<ProcessedTelegramUpdate>
+{
+    public void Configure(EntityTypeBuilder<ProcessedTelegramUpdate> builder)
+    {
+        builder.ToTable("ProcessedTelegramUpdates");
+        builder.HasKey(e => new { e.BotScopeKey, e.TelegramUpdateId });
+        builder.Property(e => e.BotScopeKey).HasMaxLength(80).IsRequired();
+        builder.Property(e => e.ProcessedAtUtc).IsRequired();
     }
 }
 

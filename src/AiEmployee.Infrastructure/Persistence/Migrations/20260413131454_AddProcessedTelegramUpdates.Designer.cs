@@ -3,6 +3,7 @@ using System;
 using AiEmployee.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AiEmployee.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AiEmployeeDbContext))]
-    partial class AiEmployeeDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260413131454_AddProcessedTelegramUpdates")]
+    partial class AddProcessedTelegramUpdates
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -392,6 +395,7 @@ namespace AiEmployee.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("AiEmployee.Domain.Entities.Message", b =>
                 {
                     b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
                     b.Property<string>("ConversationId")

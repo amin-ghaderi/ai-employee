@@ -5,9 +5,13 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AiEmployee.Infrastructure.Persistence;
 
-public sealed class AiEmployeeDbContext : DbContext
+/// <summary>
+/// PostgreSQL-only EF Core context for migrations (separate history from SQLite).
+/// Maps the same persistence model as <see cref="AiEmployeeDbContext"/>; application code uses <see cref="AiEmployeeDbContext"/>.
+/// </summary>
+public sealed class AiEmployeePostgresDbContext : DbContext
 {
-    public AiEmployeeDbContext(DbContextOptions<AiEmployeeDbContext> options)
+    public AiEmployeePostgresDbContext(DbContextOptions<AiEmployeePostgresDbContext> options)
         : base(options)
     {
     }
@@ -31,6 +35,6 @@ public sealed class AiEmployeeDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.ApplyConfigurationsFromAssembly(typeof(AiEmployeeDbContext).Assembly);
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(AiEmployeePostgresDbContext).Assembly);
     }
 }

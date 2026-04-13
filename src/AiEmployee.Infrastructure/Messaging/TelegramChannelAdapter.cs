@@ -1,3 +1,6 @@
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using AiEmployee.Application.Interfaces;
 using AiEmployee.Application.Messaging;
 using AiEmployee.Domain.BotConfiguration;
@@ -61,6 +64,11 @@ public sealed class TelegramChannelAdapter : IChannelAdapter
             metadata[IncomingMessageMetadataKeys.FirstName] = from.FirstName;
         if (!string.IsNullOrEmpty(from?.LastName))
             metadata[IncomingMessageMetadataKeys.LastName] = from.LastName;
+
+        metadata[IncomingMessageMetadataKeys.TelegramBotScopeKey] =
+            BuildTelegramBotScopeKey(telegramIntegrationId, integrationExternalId);
+        metadata[IncomingMessageMetadataKeys.TelegramUpdateId] =
+            update.UpdateId.ToString(CultureInfo.InvariantCulture);
 
         return new IncomingMessage(
             BotIntegrationChannelNames.Telegram,
@@ -129,5 +137,18 @@ public sealed class TelegramChannelAdapter : IChannelAdapter
             enabledTelegram[0].Id,
             TelegramTokenUtilities.MaskBotToken(token));
         return token;
+    }
+
+    /// <summary>
+    /// Stable per-bot key: integration route id when present, otherwise short hash of the bot token string.
+    /// </summary>
+    private static string BuildTelegramBotScopeKey(Guid? telegramIntegrationId, string integrationExternalId)
+    {
+        if (telegramIntegrationId is { } id)
+            return $"i:{id:N}";
+
+        var trimmed = integrationExternalId.Trim();
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(trimmed));
+        return "t:" + Convert.ToHexString(hash.AsSpan(0, 16));
     }
 }

@@ -2677,6 +2677,520 @@ Focus first on eliminating the **winner mapping inconsistency**, then improve de
 
 Continue by implementing **flow prioritization and isolation**, ensuring that command-based flows (e.g., `/judge`) override all other behaviors and execute exclusively within a test run.
 
+2026-04-12 
+
+Certainly! Below is a structured, professional, and reusable technical summary based on the completed work.
+
+---
+
+## 1. Project Context
+
+**AI Employee Platform** is a modular, extensible system designed to create and manage AI-powered bots capable of interacting with users across multiple external communication channels.
+
+The primary goal of this phase was to transform the platform from a Telegram-centric solution into a **provider-agnostic integration architecture**, enabling seamless connectivity with systems such as Telegram, Slack, WhatsApp, and generic webhook-based services. This included enhancing the Admin Console, webhook lifecycle management, and message routing infrastructure.
+
+---
+
+## 2. What Was Implemented
+
+### Provider-Agnostic Integration Architecture
+
+* Refactored the system to support multiple external providers through a unified and extensible design.
+* Introduced a pluggable provider model allowing new integrations without modifying core logic.
+
+### Webhook Lifecycle Abstraction
+
+* Implemented a neutral webhook management layer:
+
+  * `IIntegrationWebhookApplicationService`
+  * `IntegrationWebhookApplicationService`
+* Replaced Telegram-specific dependencies in the Admin API with generic interfaces.
+
+### Provider Registry and Strategy Pattern
+
+* Introduced:
+
+  * `IIntegrationProvider`
+  * `IIntegrationProviderRegistry`
+  * `IntegrationProviderRegistry`
+* Enabled runtime resolution of providers based on canonical identifiers.
+
+### Implemented Providers
+
+* **Telegram Integration Provider**
+
+  * Full webhook synchronization and messaging support.
+* **Generic Webhook Provider**
+
+  * Supports any system capable of sending HTTP POST requests.
+* **WhatsApp Cloud API Provider**
+
+  * Includes webhook verification and Meta Graph API integration.
+* **Slack Integration Provider**
+
+  * Supports Events API, signature verification, and message dispatch via `chat.postMessage`.
+
+### Slack End-to-End Messaging
+
+* Implemented inbound and outbound Slack communication:
+
+  * `SlackWebhookController`
+  * `SlackEventMapper`
+  * `SlackMessageSender`
+  * Slack DTOs and settings.
+
+### Admin Console Enhancements
+
+* Updated Integrations UI to:
+
+  * Display provider information.
+  * Support webhook lifecycle operations.
+  * Allow provider-specific configuration.
+* Added `SupportsWebhook` and `Provider` fields to DTOs.
+
+### Telegram Webhook and Runtime Diagnostics
+
+* Configured ngrok-based public access for local development.
+* Diagnosed webhook delivery, Docker networking, and AI response issues.
+* Verified Telegram message delivery and handler execution through logs.
+
+---
+
+## 3. Technical Details
+
+### Technologies and Frameworks
+
+* **Backend:** .NET 8, ASP.NET Core Web API
+* **Frontend:** React (Vite)
+* **Database:** SQLite with Entity Framework Core
+* **AI Service:** Python (FastAPI) with Ollama
+* **Containerization:** Docker and Docker Compose
+* **Tunneling:** ngrok
+* **External APIs:** Telegram Bot API, Slack Events API, WhatsApp Cloud API
+
+### Architectural Patterns
+
+* Clean Architecture (Domain, Application, Infrastructure, API)
+* Domain-Driven Design (DDD)
+* Strategy Pattern (Integration Providers)
+* Adapter Pattern (External API Clients)
+* Registry/Factory Pattern (Provider Resolution)
+* Dependency Injection
+* Facade Pattern (Webhook Lifecycle Service)
+* Plugin-Oriented Architecture
+
+### Key Components
+
+* `IntegrationProviders`
+* `IntegrationWebhookApplicationService`
+* `IIntegrationProvider`
+* `IntegrationProviderRegistry`
+* `IncomingMessageHandler`
+* `OutgoingMessageDispatcher`
+* `TelegramChannelAdapter`
+* `SlackEventMapper`
+* `SlackMessageSender`
+* `GenericWebhookIntegrationProvider`
+* `WhatsAppIntegrationProvider`
+* `AdminIntegrationController`
+
+---
+
+## 4. Current State
+
+### Fully Operational
+
+* Multi-provider integration architecture.
+* Telegram webhook synchronization and messaging.
+* Slack Events API with inbound and outbound communication.
+* Generic webhook provider.
+* WhatsApp Cloud API webhook lifecycle.
+* Provider registry and lifecycle abstraction.
+* Admin Console integration management UI.
+* Dockerized environment with ngrok for public webhooks.
+* AI service integration via FastAPI and Ollama.
+* Automated unit and integration tests passing successfully.
+
+### Partially Complete
+
+* Slack event processing beyond basic message handling.
+* Advanced WhatsApp messaging features.
+* Expanded AI orchestration and analytics.
+* Enhanced observability and centralized logging.
+
+---
+
+## 5. Pending Tasks / Next Steps
+
+1. Integrate Slack and WhatsApp events into advanced automation and analytics workflows.
+2. Enhance error handling and user-facing feedback for webhook failures.
+3. Improve observability with structured logging and monitoring tools (e.g., Serilog, OpenTelemetry).
+4. Implement idempotency and retry strategies for webhook processing.
+5. Introduce secure secret management (e.g., Azure Key Vault or Docker secrets).
+6. Add support for additional providers such as Microsoft Teams and Discord.
+7. Implement rate limiting and resilience policies using Polly.
+8. Extend the Admin Console with provider-specific configuration panels.
+9. Strengthen validation and normalization of integration channels.
+10. Prepare the platform for production deployment with CI/CD pipelines.
+
+---
+
+## 6. Important Notes
+
+* Webhook endpoints always return HTTP 200 to prevent provider retries; silent failures must be diagnosed via logs.
+* Only text messages are processed by default in Telegram and Slack unless extended.
+* The `ExternalId` field represents provider-specific credentials or URLs:
+
+  * Telegram: Bot Token
+  * Slack: Webhook/Event URL
+  * WhatsApp: Callback URL
+  * Generic: HTTPS Webhook URL
+* Public HTTPS endpoints are required for external integrations; ngrok is used for local development.
+* Slack signature verification and WhatsApp token validation are enforced for security.
+* Behavior configurations can intentionally suppress replies if misconfigured.
+* The system adheres to Clean Architecture and remains backward compatible with existing Telegram integrations.
+
+---
+
+## 7. How to Continue in Next Chat
+
+Continue enhancing the AI Employee Platform by extending provider capabilities, improving observability, and advancing AI-driven automation. Focus on production readiness, advanced integrations, and scalable orchestration while maintaining the provider-agnostic architecture and Clean Architecture principles.
+
+---
+
+2026-04-12
+Certainly! Below is a clear, structured, and professional technical summary tailored for reuse in future engineering discussions.
+
+---
+
+# **AI Employee Platform – Telegram Integration & Ollama Cloud Configuration Summary**
+
+## **1. Project Context**
+
+* **Project/Module:** AI Employee Platform – Telegram Integration and AI Service
+* **Description:**
+  A modular AI-driven system designed to act as a digital employee, enabling structured conversations, lead qualification, and automated customer interactions across multiple channels.
+* **Main Goal:**
+  To enable reliable, real-time communication between Telegram users and the AI Employee Assistant using Ollama Cloud models, ensuring consistent token handling and accurate AI responses.
+
+---
+
+## **2. What Was Implemented**
+
+* Configured Telegram webhook integration through the Admin Console.
+* Deployed the platform using Docker Compose, including API, AI Service, Admin UI, and Ollama.
+* Integrated the AI Service with Ollama Cloud using the `gpt-oss:120b-cloud` model.
+* Diagnosed and resolved HTTP 502 and 401 errors originating from Ollama authentication.
+* Installed and authenticated Ollama via CLI and Docker to enable cloud model access.
+* Verified ngrok tunneling and Telegram webhook connectivity.
+* Implemented and validated prompt configurations for a professional AI Employee Assistant.
+* Conducted a comprehensive read-only audit to ensure token consistency between incoming and outgoing Telegram communications.
+* Identified and analyzed fallback mechanisms that could cause token mismatches.
+* Confirmed successful end-to-end AI responses within the Admin Real Flow.
+
+**Key Components and Logic:**
+
+* Telegram webhook handling via `TelegramWebhookController`.
+* Integration mapping using `BotIntegration.ExternalId`.
+* AI inference through FastAPI (`ai-service`) connected to Ollama Cloud.
+* Token propagation through `IncomingMessageHandler` and `ActiveTelegramBotContext`.
+* Prompt-driven AI responses with multilingual support.
+
+---
+
+## **3. Technical Details**
+
+### **Technologies and Tools**
+
+* **Backend:** .NET (ASP.NET Core Web API)
+* **AI Service:** Python (FastAPI, httpx, Uvicorn)
+* **LLM Runtime:** Ollama with `gpt-oss:120b-cloud`
+* **Frontend:** Admin UI (Vite/React)
+* **Containerization:** Docker & Docker Compose
+* **Tunneling:** ngrok
+* **Messaging Platform:** Telegram Bot API
+* **Database:** Entity Framework Core
+* **Logging & Diagnostics:** Docker logs, PowerShell, structured logging
+
+### **Architecture and Patterns**
+
+* Clean Architecture with Domain-Driven Design (DDD)
+* Modular Microservices Architecture
+* Channel Adapter Pattern for messaging integrations
+* Repository Pattern for data access
+* Dependency Injection throughout services
+* Context-Based Token Resolution (`IActiveTelegramBotContext`)
+* Integration-driven configuration via database
+* Webhook-based event processing
+* Fallback Configuration Strategy for resilience
+
+### **Key Constraints**
+
+* Cloud models require authenticated Ollama sessions.
+* Telegram requires HTTPS-accessible webhooks.
+* Token mismatches can cause silent message delivery failures.
+* Docker networking relies on internal service discovery.
+
+---
+
+## **4. Current State**
+
+### **Working Components**
+
+* ✅ Dockerized platform runs successfully.
+* ✅ Ollama Cloud authentication is configured and operational.
+* ✅ AI Service communicates with Ollama without errors.
+* ✅ Admin Console Real Flow functions correctly.
+* ✅ Telegram webhook receives updates successfully.
+* ✅ ngrok tunnel forwards requests properly.
+* ✅ AI responses are generated using `gpt-oss:120b-cloud`.
+* ✅ Prompt and language configurations are correctly applied.
+* ✅ Token consistency logic has been verified and documented.
+
+### **Partially Complete**
+
+* ⚠️ Telegram responses intermittently fail due to potential fallback token usage or configuration inconsistencies.
+
+---
+
+## **5. Pending Tasks / Next Steps**
+
+1. Ensure the Telegram bot token in `BotIntegration.ExternalId` matches the token registered with Telegram.
+2. Remove or align the fallback `Telegram:BotToken` in `appsettings.json`.
+3. Verify that BotResolver consistently resolves the correct integration.
+4. Prevent unintended fallback to `GetJudgeBotAsync()` in production.
+5. Add structured logging for token resolution paths.
+6. Confirm webhook synchronization via the Admin Console.
+7. Validate message delivery in Telegram after configuration alignment.
+8. Optionally enforce strict validation to prevent mismatched tokens.
+9. Enhance monitoring and alerting for messaging failures.
+10. Harden configuration management for production deployment.
+
+---
+
+## **6. Important Notes**
+
+* Telegram does not send the bot token in webhook requests; it must be resolved internally.
+* Tokens are stored in `BotIntegration.ExternalId` for the Telegram channel.
+* The Admin Real Flow bypasses Telegram and confirms AI functionality independently.
+* The `gpt-oss:120b-cloud` model requires authenticated Ollama access.
+* Fallback mechanisms may cause token mismatches if not properly configured.
+* ngrok URLs change between sessions and must be resynchronized.
+* The system returns HTTP 200 to Telegram even on processing failures to prevent retries.
+* Multiple Telegram integrations may introduce ambiguity if not carefully managed.
+
+---
+
+## **7. How to Continue in Next Chat**
+
+To continue development, verify Telegram token resolution by tracing the flow from `TelegramWebhookController` through `BotResolver` to `TelegramClient`, ensuring that `BotIntegration.ExternalId` is consistently used without fallback to default configuration tokens.
+
+---
+
+2026-04-13 
+
+
+Certainly. Below is a structured and professional technical summary based on the completed work.
+
+---
+
+# **AI Employee Platform – Telegram Messaging & Persistence Layer**
+
+## 1. Project Context
+
+**Brief Explanation**
+The AI Employee Platform is a modular, multi-bot conversational system designed to support users through AI-driven interactions across multiple channels such as Telegram. It provides configurable bots, personas, behaviors, and prompt templates managed via an administrative console.
+
+**Main Goal of This Part**
+The objective of this phase was to implement and stabilize the Telegram messaging pipeline, ensure reliable message persistence, resolve database concurrency issues, and establish a scalable and extensible data model for future enhancements.
+
+---
+
+## 2. What Was Implemented
+
+### Telegram Messaging Pipeline
+
+* Implemented a fully functional Telegram webhook integration.
+* Enabled end-to-end message processing from Telegram to the AI service and back.
+* Ensured reliable routing through `TelegramWebhookController` and `IncomingMessageHandler`.
+
+### Conversation and Message Persistence
+
+* Designed and implemented conversation and message storage using Entity Framework Core.
+* Persisted Telegram messages into PostgreSQL through the `Conversations` and `Messages` tables.
+* Established idempotency using the `ProcessedTelegramUpdates` table to prevent duplicate processing.
+
+### Concurrency Issue Resolution
+
+* Investigated and resolved a `DbUpdateConcurrencyException`.
+* Identified the root cause: mismatch between EF Core configuration and domain model for `Message.Id`.
+* Fixed by configuring the primary key as client-generated.
+
+### EF Core Configuration Fix
+
+* Updated the `Message` entity configuration:
+
+  * Changed `ValueGeneratedOnAdd()` to `ValueGeneratedNever()`.
+  * Ensured EF Core performs `INSERT` operations instead of `UPDATE` for new messages.
+* Synchronized model snapshots and migrations with the updated configuration.
+
+### Repository Enhancements
+
+* Improved `EfConversationRepository` to ensure correct entity tracking and insertion.
+* Implemented safe handling of detached entities.
+* Added transactional behavior and execution strategies for reliability.
+
+### Dockerized Environment
+
+* Configured a complete containerized environment including:
+
+  * API
+  * AI Service
+  * PostgreSQL
+  * Ollama
+  * Admin UI
+  * Ngrok (for public webhook exposure)
+
+### Database Verification
+
+* Validated data persistence by querying PostgreSQL.
+* Confirmed successful storage of conversations and Telegram user messages.
+
+---
+
+## 3. Technical Details
+
+### Technologies and Tools
+
+* **Backend:** .NET 8, ASP.NET Core Web API
+* **ORM:** Entity Framework Core with Npgsql
+* **Database:** PostgreSQL
+* **AI Service:** Python (FastAPI) with Ollama
+* **Frontend:** React (Vite)
+* **Containerization:** Docker & Docker Compose
+* **Webhook Exposure:** Ngrok
+* **Messaging Platform:** Telegram Bot API
+
+### Key Tables
+
+* `Conversations`
+* `Messages`
+* `Users`
+* `Bots`
+* `BotIntegrations`
+* `PromptTemplates`
+* `PromptVersions`
+* `Personas`
+* `Behaviors`
+* `Leads`
+* `LanguageProfiles`
+* `SystemSettings`
+* `Judgments`
+* `ProcessedTelegramUpdates`
+
+### Architectural Patterns
+
+* Clean Architecture (Domain, Application, Infrastructure, API)
+* Repository Pattern
+* Domain-Driven Design (DDD)
+* CQRS-oriented message handling
+* Idempotent webhook processing
+* Transactional consistency with EF Core execution strategies
+* Containerized microservices architecture
+
+### Important Design Decisions
+
+* Client-generated GUIDs for message identifiers.
+* Use of PostgreSQL advisory locks and transactions for concurrency control.
+* Deduplication of Telegram updates using `update_id`.
+* Multi-bot and multi-channel support via integrations.
+
+---
+
+## 4. Current State
+
+### What Is Working
+
+* Telegram bot receives and processes messages successfully.
+* Conversations and user messages are stored correctly in PostgreSQL.
+* AI responses are generated and delivered through the AI service.
+* Concurrency issues have been resolved.
+* Dockerized environment runs reliably.
+* Ngrok exposes the webhook endpoint successfully.
+* Idempotent processing prevents duplicate updates.
+* Admin UI and AI service are operational.
+
+### What Is Partially Complete
+
+* AI-generated responses are not yet persisted in the `Messages` table.
+* Message roles (User vs. Assistant) are not explicitly stored.
+* The originating bot for each message is not directly recorded in the database.
+
+---
+
+## 5. Pending Tasks / Next Steps
+
+1. **Store AI Responses**
+
+   * Persist assistant-generated replies in the `Messages` table.
+
+2. **Add Message Role**
+
+   * Introduce a `Role` column (`User`, `Assistant`, `System`).
+
+3. **Associate Messages with Bots**
+
+   * Add `BotId` or `BotIntegrationId` to messages or conversations.
+
+4. **Enhance Metadata**
+
+   * Include model name, token usage, and response time.
+
+5. **Extend Analytics**
+
+   * Enable tracking of AI performance and usage metrics.
+
+6. **Refine Domain Model**
+
+   * Update entities and EF Core configurations accordingly.
+
+7. **Create Migrations**
+
+   * Generate and apply migrations for schema updates.
+
+8. **Implement Observability**
+
+   * Add structured logging, metrics, and monitoring.
+
+9. **Introduce Automated Tests**
+
+   * Add integration and load tests for webhook concurrency.
+
+10. **Optimize Reporting**
+
+    * Improve query performance through indexing.
+
+---
+
+## 6. Important Notes
+
+* PostgreSQL is case-sensitive; quoted identifiers such as `"Conversations"` must be used.
+* The `DbUpdateConcurrencyException` was caused by incorrect EF Core key generation settings.
+* Telegram webhooks must return HTTP 200 to prevent retries.
+* Ngrok tunnels must be unique; duplicate endpoints cause `ERR_NGROK_334`.
+* Docker Compose may warn about missing explicit project names when using symlinks.
+* Client-generated GUIDs ensure consistency between the domain model and persistence layer.
+* Advisory locks and idempotency safeguards protect against concurrent webhook processing.
+* Current storage includes only user messages; assistant responses must be added for full conversational history.
+
+---
+
+## 7. How to Continue in Next Chat
+
+Continue by extending the `Messages` domain model and database schema to store AI-generated responses, message roles, and bot associations. Generate EF Core migrations, update repositories and handlers, and ensure responses from the AI service are persisted alongside user messages while maintaining idempotency and transactional integrity.
+
+---
+
 
 
 

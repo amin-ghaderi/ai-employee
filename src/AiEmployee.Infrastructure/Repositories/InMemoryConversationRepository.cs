@@ -20,6 +20,23 @@ public sealed class InMemoryConversationRepository : IConversationRepository
         return Task.CompletedTask;
     }
 
+    public Task AppendUserMessageAsync(string conversationId, Message message, CancellationToken cancellationToken = default)
+    {
+        lock (_store)
+        {
+            if (!_store.TryGetValue(conversationId, out var conv))
+            {
+                conv = new Conversation(conversationId);
+                _store[conversationId] = conv;
+            }
+
+            if (!conv.Messages.Any(m => m.Id == message.Id))
+                conv.AddMessage(message);
+        }
+
+        return Task.CompletedTask;
+    }
+
     public Task ReplaceMessagesAsync(string conversationId, IReadOnlyList<Message> messages, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(messages);

@@ -8,10 +8,10 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace AiEmployee.Infrastructure.Persistence.Migrations
+namespace AiEmployee.Infrastructure.Persistence.Migrations.PostgreSql
 {
-    [DbContext(typeof(AiEmployeeDbContext))]
-    partial class AiEmployeeDbContextModelSnapshot : ModelSnapshot
+    [DbContext(typeof(AiEmployeePostgresDbContext))]
+    partial class AiEmployeePostgresDbContextModelSnapshot : ModelSnapshot
     {
         protected override void BuildModel(ModelBuilder modelBuilder)
         {

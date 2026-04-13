@@ -15,6 +15,7 @@ COPY src/AiEmployee.Domain/*.csproj            src/AiEmployee.Domain/
 COPY src/AiEmployee.Infrastructure/*.csproj    src/AiEmployee.Infrastructure/
 COPY tests/AiEmployee.UnitTests/*.csproj       tests/AiEmployee.UnitTests/
 COPY tests/AiEmployee.IntegrationTests/*.csproj tests/AiEmployee.IntegrationTests/
+COPY tools/AiEmployee.DataMigrator/*.csproj    tools/AiEmployee.DataMigrator/
 RUN dotnet restore
 
 COPY . .

@@ -28,6 +28,12 @@ public sealed class TestScopedConversationRepository : IConversationRepository
     public Task SaveAsync(Conversation conversation) =>
         Active.SaveAsync(conversation);
 
+    public Task AppendUserMessageAsync(
+        string conversationId,
+        Message message,
+        CancellationToken cancellationToken = default) =>
+        Active.AppendUserMessageAsync(conversationId, message, cancellationToken);
+
     public Task ReplaceMessagesAsync(
         string conversationId,
         IReadOnlyList<Message> messages,

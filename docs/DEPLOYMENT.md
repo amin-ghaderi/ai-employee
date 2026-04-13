@@ -64,7 +64,7 @@ Services:
 | **ollama** | 11434 | Local inference (optional) |
 | **ngrok** | 4040 | Tunnel UI (profile `tunnel`) |
 
-**Persistence:** Default SQLite file **`aiemployee.db`** is created in the mounted workspace when using the compose file’s volume mapping. For production, prefer a **managed database** or **mounted volume** for the DB file path.
+**Persistence:** Default SQLite file **`aiemployee.db`** is created in the mounted workspace when using the compose file’s volume mapping. For production, prefer a **managed database** or **mounted volume** for the DB file path. For Docker Compose PostgreSQL, ETL, and connectivity conventions, see **[postgresql-migration-phase4.md](./postgresql-migration-phase4.md)**. For production cutover, rollback, and Postgres-primary operations, see **[postgresql-cutover-phase5.md](./postgresql-cutover-phase5.md)**.
 
 **Secrets:** Use **`docker-compose.override.yml`** (gitignored) or orchestrator secrets for **`Admin__ApiKey`**, **`Telegram__BotToken`** (if used), and ngrok token.
 
@@ -84,4 +84,6 @@ See [`docker-compose.yml`](../docker-compose.yml) and example snippets under [`d
 
 - [TELEGRAM_WEBHOOKS.md](./TELEGRAM_WEBHOOKS.md) — Architecture, admin API, security.
 - [CONFIGURATION.md](./CONFIGURATION.md) — Environment variables.
+- [postgresql-migration-phase4.md](./postgresql-migration-phase4.md) — Phase 4 Postgres migration runbook (ETL, Docker networking, validation).
+- [postgresql-cutover-phase5.md](./postgresql-cutover-phase5.md) — Phase 5 Postgres-primary cutover, verification, rollback.
 - [OPERATIONAL_CHECKLIST.md](./OPERATIONAL_CHECKLIST.md) — Go-live checklist.

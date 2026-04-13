@@ -28,6 +28,7 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
     private readonly IFlowTracker _flowTracker;
     private readonly RealFlowTestContext _testContext;
     private readonly IActiveTelegramBotContext _activeTelegramBotContext;
+    private readonly ITelegramUpdateDeduplicator _telegramUpdateDeduplicator;
     private readonly ILogger<IncomingMessageHandler> _logger;
 
     public IncomingMessageHandler(
@@ -45,6 +46,7 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
         IFlowTracker flowTracker,
         RealFlowTestContext testContext,
         IActiveTelegramBotContext activeTelegramBotContext,
+        ITelegramUpdateDeduplicator telegramUpdateDeduplicator,
         ILogger<IncomingMessageHandler> logger)
     {
         _judgeUseCase = judgeUseCase;
@@ -61,6 +63,7 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
         _flowTracker = flowTracker;
         _testContext = testContext;
         _activeTelegramBotContext = activeTelegramBotContext;
+        _telegramUpdateDeduplicator = telegramUpdateDeduplicator;
         _logger = logger;
     }
 
@@ -85,6 +88,22 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
                 conversationId,
                 text?.Length ?? 0,
                 !string.IsNullOrWhiteSpace(integrationId));
+
+            var dedupScope = Meta(message.Metadata, IncomingMessageMetadataKeys.TelegramBotScopeKey);
+            var dedupUpdateIdText = Meta(message.Metadata, IncomingMessageMetadataKeys.TelegramUpdateId);
+            if (BotIntegrationChannelNames.IsTelegramChannel(message.Channel)
+                && !string.IsNullOrWhiteSpace(dedupScope)
+                && long.TryParse(dedupUpdateIdText, out var dedupUpdateId))
+            {
+                if (!await _telegramUpdateDeduplicator.TryRegisterFirstDeliveryAsync(dedupScope, dedupUpdateId).ConfigureAwait(false))
+                {
+                    _logger.LogInformation(
+                        "Skipping duplicate Telegram update | update_id={UpdateId} scope={Scope}",
+                        dedupUpdateId,
+                        dedupScope);
+                    return;
+                }
+            }
 
             var user = await _userRepository.GetByIdAsync(messageUserId)
                 ?? new User(messageUserId);
@@ -206,11 +225,8 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
                 && user.MessagesCount == 1)
             {
                 _flowTracker.Set("onboarding");
-                var onboardingConversation = await _conversationRepository.GetByIdAsync(conversationId)
-                    ?? new Conversation(conversationId);
                 var onboardingMessage = new Message(conversationId, messageUserId, text, username, firstName, lastName);
-                onboardingConversation.AddMessage(onboardingMessage);
-                await _conversationRepository.SaveAsync(onboardingConversation);
+                await _conversationRepository.AppendUserMessageAsync(conversationId, onboardingMessage).ConfigureAwait(false);
 
                 await _outgoingClient.SendMessageAsync(
                     message.Channel,
@@ -219,13 +235,13 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
                 return;
             }
 
-            var conversation = await _conversationRepository.GetByIdAsync(conversationId)
-                ?? new Conversation(conversationId);
             var msg = new Message(conversationId, messageUserId, text, username, firstName, lastName);
-            conversation.AddMessage(msg);
-            await _conversationRepository.SaveAsync(conversation);
+            await _conversationRepository.AppendUserMessageAsync(conversationId, msg).ConfigureAwait(false);
 
             _logger.LogInformation("Message saved to conversation {ConversationId}", conversationId);
+
+            var conversation = await _conversationRepository.GetByIdAsync(conversationId)
+                ?? throw new InvalidOperationException($"Conversation '{conversationId}' not found after append.");
 
             var userMessages = conversation.Messages
                 .Where(m => m.UserId == messageUserId)

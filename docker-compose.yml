@@ -19,6 +19,27 @@ services:
     restart: unless-stopped
 
   # ───────────────────────────────────────────────
+  # PostgreSQL — primary database for Compose (Phase 5). SQLite remains a documented rollback path.
+  # ───────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: aiemployee-postgres
+    environment:
+      POSTGRES_DB: aiemployee
+      POSTGRES_USER: aiemployee
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aiemployee -d aiemployee"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - backend
+
+  # ───────────────────────────────────────────────
   # Python AI service (FastAPI + Uvicorn)
   # ───────────────────────────────────────────────
   ai-service:
@@ -36,6 +57,8 @@ services:
     depends_on:
       - ollama
     restart: unless-stopped
+    networks:
+      - backend
 
   # ───────────────────────────────────────────────
   # .NET API (ASP.NET Core 10) — published image, no source bind mount.
@@ -49,21 +72,32 @@ services:
     ports:
       - "5155:5155"
     volumes:
+      # Not used when Database__Provider=Npgsql. Kept for fast rollback to Sqlite (override env + optional sqlite file).
       - api-data:/app/data
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:5155
       - Ai__BaseUrl=http://ai-service:8000
-      # SQLite on a named volume path (writable, survives restarts)
-      - ConnectionStrings__DefaultConnection=Data Source=/app/data/aiemployee.db
+      # Default in Compose: PostgreSQL (hostname "postgres"). Override in .env to revert to SQLite.
+      - Database__Provider=${Database__Provider:-Npgsql}
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=aiemployee;Username=aiemployee;Password=${POSTGRES_PASSWORD:-postgres}
+      # SQLite fallback (example env lines for docker-compose.override.yml):
+      #   - Database__Provider=Sqlite
+      #   - ConnectionStrings__DefaultConnection=Data Source=/app/data/aiemployee.db
+      # If using Sqlite without Postgres, remove postgres from depends_on in the override.
       - Admin__ApiKey=${ADMIN_API_KEY:-your-secret-key}
       # Telegram webhooks: set to your public HTTPS origin (ngrok, tunnel, or prod domain). No trailing slash.
       # Example (uncomment and set): - App__PublicBaseUrl=https://abcd-1234.ngrok-free.app
       # Production: use ASPNETCORE_ENVIRONMENT=Production and HTTPS-only PublicBaseUrl (see docs/CONFIGURATION.md).
       # Telegram: prefer BotIntegrations (ExternalId) per bot; optional legacy: Telegram__BotToken=... in override file.
     depends_on:
-      - ai-service
+      postgres:
+        condition: service_healthy
+      ai-service:
+        condition: service_started
     restart: unless-stopped
+    networks:
+      - backend
 
   # Bind-mounted API + hot reload: run on the host (`dotnet watch run --project src/AiEmployee.Api`)
   # or build `src/AiEmployee.Api/Dockerfile.dev` manually — do not combine with this `api` service on the same port.
@@ -78,6 +112,8 @@ services:
     volumes:
       - ollama-data:/root/.ollama
     restart: unless-stopped
+    networks:
+      - backend
     # Uncomment for NVIDIA GPU support (requires nvidia-container-toolkit):
     # deploy:
     #   resources:
@@ -102,8 +138,15 @@ services:
     restart: unless-stopped
     profiles:
       - tunnel                       # only starts with: docker compose --profile tunnel up
+    networks:
+      - backend
+
+networks:
+  backend:
+    driver: bridge
 
 volumes:
   ollama-data:
   nuget-cache:
   api-data:
+  pg-data:
