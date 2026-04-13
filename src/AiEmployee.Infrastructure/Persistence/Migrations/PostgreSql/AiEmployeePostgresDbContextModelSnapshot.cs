@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
+using Pgvector;
 
 #nullable disable
 
@@ -20,6 +21,7 @@ namespace AiEmployee.Infrastructure.Persistence.Migrations.PostgreSql
                 .HasAnnotation("ProductVersion", "10.0.4")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
+            NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "vector");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("AiEmployee.Domain.BotConfiguration.Behavior", b =>
@@ -407,6 +409,11 @@ namespace AiEmployee.Infrastructure.Persistence.Migrations.PostgreSql
                     b.Property<string>("LastName")
                         .HasColumnType("text");
 
+                    b.Property<int>("Speaker")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
                     b.Property<string>("Text")
                         .IsRequired()
                         .HasColumnType("text");
@@ -501,6 +508,39 @@ namespace AiEmployee.Infrastructure.Persistence.Migrations.PostgreSql
                         .IsUnique();
 
                     b.ToTable("SystemSettings", (string)null);
+                });
+
+            modelBuilder.Entity("AiEmployee.Infrastructure.Persistence.Entities.MessageEmbeddingEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ConversationId")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Vector>("Embedding")
+                        .HasColumnType("vector(1536)");
+
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConversationId");
+
+                    b.HasIndex("MessageId")
+                        .IsUnique();
+
+                    b.ToTable("MessageEmbeddings", (string)null);
                 });
 
             modelBuilder.Entity("AiEmployee.Domain.BotConfiguration.Behavior", b =>
@@ -680,6 +720,17 @@ namespace AiEmployee.Infrastructure.Persistence.Migrations.PostgreSql
                         .HasForeignKey("ConversationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("AiEmployee.Infrastructure.Persistence.Entities.MessageEmbeddingEntity", b =>
+                {
+                    b.HasOne("AiEmployee.Domain.Entities.Message", "Message")
+                        .WithMany()
+                        .HasForeignKey("MessageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Message");
                 });
 
             modelBuilder.Entity("AiEmployee.Domain.Entities.Conversation", b =>

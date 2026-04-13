@@ -1,26 +1,27 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+using Pgvector.EntityFrameworkCore;
 
 namespace AiEmployee.Infrastructure.Persistence;
 
 /// <summary>
-/// Design-time factory for PostgreSQL migrations (<see cref="AiEmployeePostgresDbContext"/>).
-/// Set <c>ConnectionStrings__DefaultConnection</c> (and optionally <c>Database__Provider</c>=Npgsql for tooling scripts).
+/// Design-time factory so EF migrations can build the PostgreSQL model (requires <c>UseVector()</c>).
 /// </summary>
 public sealed class AiEmployeePostgresDbContextFactory : IDesignTimeDbContextFactory<AiEmployeePostgresDbContext>
 {
     public AiEmployeePostgresDbContext CreateDbContext(string[] args)
     {
         var connectionString =
-            Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
+            Environment.GetEnvironmentVariable("POSTGRES_DESIGN_CONNECTION")
+            ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
             ?? "Host=localhost;Port=5432;Database=aiemployee;Username=aiemployee;Password=postgres";
 
-        var optionsBuilder = new DbContextOptionsBuilder<AiEmployeePostgresDbContext>()
-            .UseNpgsql(connectionString, npgsql =>
-            {
-                npgsql.MigrationsHistoryTable("__EFMigrationsHistory_Postgres", "public");
-                npgsql.CommandTimeout(60);
-            });
+        var optionsBuilder = new DbContextOptionsBuilder<AiEmployeePostgresDbContext>();
+        optionsBuilder.UseNpgsql(connectionString, npgsql =>
+        {
+            npgsql.MigrationsHistoryTable("__EFMigrationsHistory_Postgres", "public");
+            npgsql.UseVector();
+        });
 
         return new AiEmployeePostgresDbContext(optionsBuilder.Options);
     }

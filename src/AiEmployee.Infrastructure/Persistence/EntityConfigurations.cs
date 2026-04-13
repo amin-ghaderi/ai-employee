@@ -52,6 +52,11 @@ internal sealed class MessageConfiguration : IEntityTypeConfiguration<Message>
         // Domain always assigns Guid in the ctor; never rely on store-generated keys.
         // ValueGeneratedOnAdd (the default for Guid keys) can mis-route inserts as updates in some graphs.
         builder.Property(e => e.Id).ValueGeneratedNever();
+
+        builder.Property(e => e.Speaker)
+            .HasConversion<int>()
+            .HasDefaultValue(MessageSpeaker.User)
+            .IsRequired();
     }
 }
 

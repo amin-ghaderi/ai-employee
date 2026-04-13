@@ -4,5 +4,5 @@ namespace AiEmployee.Application.Interfaces;
 
 public interface IIncomingMessageHandler
 {
-    Task HandleAsync(IncomingMessage message);
+    Task HandleAsync(IncomingMessage message, CancellationToken cancellationToken = default);
 }

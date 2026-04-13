@@ -25,6 +25,9 @@ public sealed class TestScopedConversationRepository : IConversationRepository
     public Task<Conversation?> GetByIdAsync(string id) =>
         Active.GetByIdAsync(id);
 
+    public Task<Message?> GetMessageByIdAsync(Guid messageId, CancellationToken cancellationToken = default) =>
+        Active.GetMessageByIdAsync(messageId, cancellationToken);
+
     public Task SaveAsync(Conversation conversation) =>
         Active.SaveAsync(conversation);
 
@@ -33,6 +36,12 @@ public sealed class TestScopedConversationRepository : IConversationRepository
         Message message,
         CancellationToken cancellationToken = default) =>
         Active.AppendUserMessageAsync(conversationId, message, cancellationToken);
+
+    public Task AppendAssistantMessageAsync(
+        string conversationId,
+        Message message,
+        CancellationToken cancellationToken = default) =>
+        Active.AppendAssistantMessageAsync(conversationId, message, cancellationToken);
 
     public Task ReplaceMessagesAsync(
         string conversationId,

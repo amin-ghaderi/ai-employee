@@ -27,11 +27,27 @@ public sealed class EfConversationRepository : IConversationRepository
             .FirstOrDefaultAsync(c => c.Id == id);
     }
 
+    public Task<Message?> GetMessageByIdAsync(Guid messageId, CancellationToken cancellationToken = default) =>
+        _db.Messages.AsNoTracking().FirstOrDefaultAsync(m => m.Id == messageId, cancellationToken);
+
     /// <inheritdoc />
-    public async Task AppendUserMessageAsync(
+    public Task AppendUserMessageAsync(
         string conversationId,
         Message message,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        AppendMessageCoreAsync(conversationId, message, cancellationToken);
+
+    /// <inheritdoc />
+    public Task AppendAssistantMessageAsync(
+        string conversationId,
+        Message message,
+        CancellationToken cancellationToken = default) =>
+        AppendMessageCoreAsync(conversationId, message, cancellationToken);
+
+    private async Task AppendMessageCoreAsync(
+        string conversationId,
+        Message message,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(message);
         if (string.IsNullOrWhiteSpace(conversationId))

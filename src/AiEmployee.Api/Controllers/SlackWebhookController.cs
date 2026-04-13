@@ -103,7 +103,7 @@ public sealed class SlackWebhookController : ControllerBase
 
         var incoming = SlackEventMapper.MapToIncomingMessage(request, integration);
         if (incoming is not null)
-            await _incomingMessageHandler.HandleAsync(incoming).ConfigureAwait(false);
+            await _incomingMessageHandler.HandleAsync(incoming, cancellationToken).ConfigureAwait(false);
 
         return Ok();
     }

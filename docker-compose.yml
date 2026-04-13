@@ -22,7 +22,7 @@ services:
   # PostgreSQL — primary database for Compose (Phase 5). SQLite remains a documented rollback path.
   # ───────────────────────────────────────────────
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: aiemployee-postgres
     environment:
       POSTGRES_DB: aiemployee

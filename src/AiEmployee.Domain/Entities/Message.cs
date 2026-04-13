@@ -13,6 +13,7 @@ public sealed class Message
     public string? LastName { get; private set; }
     public string Text { get; private set; } = string.Empty;
     public DateTime CreatedAt { get; private set; }
+    public MessageSpeaker Speaker { get; private set; } = MessageSpeaker.User;
 
     private Message()
     {
@@ -37,5 +38,33 @@ public sealed class Message
         FirstName = firstName;
         LastName = lastName;
         CreatedAt = DateTime.UtcNow;
+        Speaker = MessageSpeaker.User;
+    }
+
+    /// <summary>
+    /// Creates a persisted assistant turn. <paramref name="botActorId"/> should be the bot's stable id (e.g. <c>Bot.Id</c> string).
+    /// </summary>
+    public static Message CreateAssistant(string conversationId, string botActorId, string text)
+    {
+        if (string.IsNullOrWhiteSpace(conversationId))
+            throw new ArgumentException("ConversationId is required.", nameof(conversationId));
+
+        if (string.IsNullOrWhiteSpace(botActorId))
+            throw new ArgumentException("Bot actor id is required.", nameof(botActorId));
+
+        ArgumentNullException.ThrowIfNull(text);
+
+        return new Message
+        {
+            Id = Guid.NewGuid(),
+            ConversationId = conversationId.Trim(),
+            UserId = botActorId.Trim(),
+            Text = text,
+            Username = null,
+            FirstName = null,
+            LastName = null,
+            CreatedAt = DateTime.UtcNow,
+            Speaker = MessageSpeaker.Assistant,
+        };
     }
 }

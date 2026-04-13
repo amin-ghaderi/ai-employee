@@ -83,7 +83,7 @@ public sealed class RealFlowTestService
                 childCtx.ConversationOverride = inMemoryRepo;
 
                 var handler = scope.ServiceProvider.GetRequiredService<IIncomingMessageHandler>();
-                await handler.HandleAsync(message);
+                await handler.HandleAsync(message, cancellationToken).ConfigureAwait(false);
 
                 _ctx.CapturedMessages.AddRange(childCtx.CapturedMessages);
                 if (childCtx.FlowExecuted is not null)

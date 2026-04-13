@@ -14,13 +14,34 @@ public sealed class InMemoryConversationRepository : IConversationRepository
         return Task.FromResult(conversation);
     }
 
+    public Task<Message?> GetMessageByIdAsync(Guid messageId, CancellationToken cancellationToken = default)
+    {
+        lock (_store)
+        {
+            foreach (var conv in _store.Values)
+            {
+                var found = conv.Messages.FirstOrDefault(m => m.Id == messageId);
+                if (found is not null)
+                    return Task.FromResult<Message?>(found);
+            }
+        }
+
+        return Task.FromResult<Message?>(null);
+    }
+
     public Task SaveAsync(Conversation conversation)
     {
         _store[conversation.Id] = conversation;
         return Task.CompletedTask;
     }
 
-    public Task AppendUserMessageAsync(string conversationId, Message message, CancellationToken cancellationToken = default)
+    public Task AppendUserMessageAsync(string conversationId, Message message, CancellationToken cancellationToken = default) =>
+        AppendMessageCoreAsync(conversationId, message);
+
+    public Task AppendAssistantMessageAsync(string conversationId, Message message, CancellationToken cancellationToken = default) =>
+        AppendMessageCoreAsync(conversationId, message);
+
+    private Task AppendMessageCoreAsync(string conversationId, Message message)
     {
         lock (_store)
         {

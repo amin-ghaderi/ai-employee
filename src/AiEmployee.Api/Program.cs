@@ -25,6 +25,7 @@ using AiEmployee.Infrastructure.Integrations.Slack;
 using AiEmployee.Infrastructure.Integrations.WhatsApp;
 using AiEmployee.Infrastructure.Telegram;
 using Microsoft.EntityFrameworkCore;
+using Pgvector.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -39,6 +40,10 @@ builder.Services.Configure<SlackSettings>(
 builder.Services.AddScoped<IActiveTelegramBotContext, ActiveTelegramBotContext>();
 builder.Services.Configure<AiOptions>(
     builder.Configuration.GetSection(AiOptions.SectionName));
+builder.Services.Configure<RagOptions>(
+    builder.Configuration.GetSection(RagOptions.SectionName));
+builder.Services.Configure<EmbeddingOptions>(
+    builder.Configuration.GetSection(EmbeddingOptions.SectionName));
 builder.Services.Configure<AppOptions>(
     builder.Configuration.GetSection(AppOptions.SectionName));
 builder.Services.AddMemoryCache();
@@ -58,6 +63,10 @@ builder.Services.AddCors(options =>
 builder.Services.AddHttpClient<IAiClient, AiClient>(client =>
 {
     client.Timeout = TimeSpan.FromMinutes(5);
+});
+builder.Services.AddHttpClient<IEmbeddingService, EmbeddingService>(client =>
+{
+    client.Timeout = TimeSpan.FromMinutes(2);
 });
 builder.Services.AddHttpClient<ITelegramClient, TelegramClient>();
 builder.Services.AddHttpClient<ITelegramWebhookApiClient, TelegramWebhookApiClient>(client =>
@@ -91,6 +100,10 @@ var usePostgres = provider.Equals("Npgsql", StringComparison.OrdinalIgnoreCase)
 
 if (usePostgres)
 {
+    builder.Services.AddSingleton<MessageEmbeddingWorkQueue>();
+    builder.Services.AddSingleton<IMessageEmbeddingPublisher, ChannelMessageEmbeddingPublisher>();
+    builder.Services.AddHostedService<MessageEmbeddingIndexingBackgroundService>();
+
     builder.Services.AddDbContext<AiEmployeePostgresDbContext>(options =>
     {
         options.UseNpgsql(connectionString, npgsql =>
@@ -98,8 +111,16 @@ if (usePostgres)
             npgsql.MigrationsHistoryTable("__EFMigrationsHistory_Postgres", "public");
             npgsql.CommandTimeout(60);
             npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(2), null);
+            npgsql.UseVector();
         });
     });
+
+    builder.Services.AddScoped<IVectorStore, PgVectorStore>();
+}
+else
+{
+    builder.Services.AddSingleton<IVectorStore, NullVectorStore>();
+    builder.Services.AddSingleton<IMessageEmbeddingPublisher, NoOpMessageEmbeddingPublisher>();
 }
 
 builder.Services.AddDbContext<AiEmployeeDbContext>(options =>
@@ -110,6 +131,7 @@ builder.Services.AddDbContext<AiEmployeeDbContext>(options =>
         {
             npgsql.CommandTimeout(60);
             npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(2), null);
+            npgsql.UseVector();
         });
     }
     else

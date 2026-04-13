@@ -29,6 +29,7 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
     private readonly RealFlowTestContext _testContext;
     private readonly IActiveTelegramBotContext _activeTelegramBotContext;
     private readonly ITelegramUpdateDeduplicator _telegramUpdateDeduplicator;
+    private readonly IMessageEmbeddingPublisher _messageEmbeddingPublisher;
     private readonly ILogger<IncomingMessageHandler> _logger;
 
     public IncomingMessageHandler(
@@ -47,6 +48,7 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
         RealFlowTestContext testContext,
         IActiveTelegramBotContext activeTelegramBotContext,
         ITelegramUpdateDeduplicator telegramUpdateDeduplicator,
+        IMessageEmbeddingPublisher messageEmbeddingPublisher,
         ILogger<IncomingMessageHandler> logger)
     {
         _judgeUseCase = judgeUseCase;
@@ -64,10 +66,11 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
         _testContext = testContext;
         _activeTelegramBotContext = activeTelegramBotContext;
         _telegramUpdateDeduplicator = telegramUpdateDeduplicator;
+        _messageEmbeddingPublisher = messageEmbeddingPublisher;
         _logger = logger;
     }
 
-    public async Task HandleAsync(IncomingMessage message)
+    public async Task HandleAsync(IncomingMessage message, CancellationToken cancellationToken = default)
     {
         var conversationId = message.ExternalChatId;
         var messageUserId = message.ExternalUserId;
@@ -227,6 +230,7 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
                 _flowTracker.Set("onboarding");
                 var onboardingMessage = new Message(conversationId, messageUserId, text, username, firstName, lastName);
                 await _conversationRepository.AppendUserMessageAsync(conversationId, onboardingMessage).ConfigureAwait(false);
+                await TryEnqueueMessageEmbeddingAsync(onboardingMessage.Id).ConfigureAwait(false);
 
                 await _outgoingClient.SendMessageAsync(
                     message.Channel,
@@ -237,6 +241,7 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
 
             var msg = new Message(conversationId, messageUserId, text, username, firstName, lastName);
             await _conversationRepository.AppendUserMessageAsync(conversationId, msg).ConfigureAwait(false);
+            await TryEnqueueMessageEmbeddingAsync(msg.Id).ConfigureAwait(false);
 
             _logger.LogInformation("Message saved to conversation {ConversationId}", conversationId);
 
@@ -329,13 +334,34 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
             {
                 _flowTracker.Set("chat");
                 var response = await _assistantUseCase.Execute(
+                    conversationId,
                     messageUserId,
                     text,
-                    judgeBotConfig);
+                    judgeBotConfig,
+                    cancellationToken).ConfigureAwait(false);
                 await _outgoingClient.SendMessageAsync(
                     message.Channel,
                     message.ExternalChatId,
                     response);
+
+                try
+                {
+                    var assistantMessage = Message.CreateAssistant(
+                        conversationId,
+                        judgeBotConfig.Bot.Id.ToString("D"),
+                        response);
+                    await _conversationRepository
+                        .AppendAssistantMessageAsync(conversationId, assistantMessage)
+                        .ConfigureAwait(false);
+                    await TryEnqueueMessageEmbeddingAsync(assistantMessage.Id).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(
+                        ex,
+                        "Failed to persist assistant message for conversation {ConversationId}",
+                        conversationId);
+                }
             }
             else
             {
@@ -389,6 +415,18 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
         finally
         {
             _activeTelegramBotContext.Token = null;
+        }
+    }
+
+    private async Task TryEnqueueMessageEmbeddingAsync(Guid messageId)
+    {
+        try
+        {
+            await _messageEmbeddingPublisher.EnqueueAsync(messageId).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to enqueue message embedding | messageId={MessageId}", messageId);
         }
     }
 

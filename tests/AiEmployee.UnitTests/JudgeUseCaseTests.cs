@@ -84,9 +84,15 @@ public class JudgeUseCaseTests
     {
         public Task<Conversation?> GetByIdAsync(string id) => Task.FromResult<Conversation?>(null);
 
+        public Task<Message?> GetMessageByIdAsync(Guid messageId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<Message?>(null);
+
         public Task SaveAsync(Conversation conversation) => Task.CompletedTask;
 
         public Task AppendUserMessageAsync(string conversationId, Message message, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task AppendAssistantMessageAsync(string conversationId, Message message, CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
 
         public Task ReplaceMessagesAsync(string conversationId, IReadOnlyList<Message> messages, CancellationToken cancellationToken = default) =>

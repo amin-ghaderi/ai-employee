@@ -92,7 +92,7 @@ public class TelegramWebhookController : ControllerBase
                 incoming.ExternalUserId,
                 incoming.Text?.Length ?? 0,
                 textPreview);
-            await _incomingMessageHandler.HandleAsync(incoming).ConfigureAwait(false);
+            await _incomingMessageHandler.HandleAsync(incoming, cancellationToken).ConfigureAwait(false);
             _logger.LogInformation(
                 "Telegram webhook: completed update_id={UpdateId}",
                 update.UpdateId);

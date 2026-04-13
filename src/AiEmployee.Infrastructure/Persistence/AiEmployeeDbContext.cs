@@ -31,6 +31,8 @@ public sealed class AiEmployeeDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.ApplyConfigurationsFromAssembly(typeof(AiEmployeeDbContext).Assembly);
+        modelBuilder.ApplyConfigurationsFromAssembly(
+            typeof(AiEmployeeDbContext).Assembly,
+            t => t != typeof(MessageEmbeddingEntityConfiguration));
     }
 }

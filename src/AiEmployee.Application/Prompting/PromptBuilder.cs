@@ -24,7 +24,8 @@ public sealed class PromptBuilder
         ArgumentNullException.ThrowIfNull(conversation);
         ArgumentNullException.ThrowIfNull(behavior);
 
-        IEnumerable<Message> messages = conversation.Messages;
+        // Judge transcript is user-only; assistant rows (Phase 1+) must not alter judge context.
+        IEnumerable<Message> messages = conversation.Messages.Where(m => m.Speaker == MessageSpeaker.User);
 
         if (behavior.ExcludeCommandsFromJudgeContext
             && !string.IsNullOrEmpty(behavior.JudgeCommandPrefix))
