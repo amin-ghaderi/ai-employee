@@ -1,5 +1,6 @@
 using AiEmployee.Application.BotConfig;
 using AiEmployee.Application.Interfaces;
+using AiEmployee.Application.News;
 using AiEmployee.Application.Options;
 using AiEmployee.Application.Prompting;
 using AiEmployee.Application.Rag;
@@ -16,8 +17,10 @@ public sealed class AssistantUseCase
     private readonly IConversationRepository _conversationRepository;
     private readonly IVectorStore _vectorStore;
     private readonly IEmbeddingService _embeddingService;
+    private readonly INewsSearchService _newsSearchService;
     private readonly IOptions<RagOptions> _ragOptions;
     private readonly IOptions<EmbeddingOptions> _embeddingOptions;
+    private readonly IOptions<LiveNewsOptions> _liveNewsOptions;
     private readonly ILogger<AssistantUseCase> _logger;
 
     public AssistantUseCase(
@@ -26,8 +29,10 @@ public sealed class AssistantUseCase
         IConversationRepository conversationRepository,
         IVectorStore vectorStore,
         IEmbeddingService embeddingService,
+        INewsSearchService newsSearchService,
         IOptions<RagOptions> ragOptions,
         IOptions<EmbeddingOptions> embeddingOptions,
+        IOptions<LiveNewsOptions> liveNewsOptions,
         ILogger<AssistantUseCase> logger)
     {
         _aiClient = aiClient;
@@ -35,8 +40,10 @@ public sealed class AssistantUseCase
         _conversationRepository = conversationRepository;
         _vectorStore = vectorStore;
         _embeddingService = embeddingService;
+        _newsSearchService = newsSearchService;
         _ragOptions = ragOptions;
         _embeddingOptions = embeddingOptions;
+        _liveNewsOptions = liveNewsOptions;
         _logger = logger;
     }
 
@@ -63,6 +70,7 @@ public sealed class AssistantUseCase
 
         var windowIds = new HashSet<Guid>(windowList.Select(m => m.Id));
         var historyLines = FormatHistoryLines(historyMessages, rag.MaxCharsPerMessage);
+        var liveNewsLines = await TryGetLiveNewsLinesAsync(userInput, cancellationToken).ConfigureAwait(false);
         var retrievedLines = await TryRetrieveContextLinesAsync(
                 conversationId,
                 userInput,
@@ -75,18 +83,60 @@ public sealed class AssistantUseCase
             config.Persona,
             retrievedLines,
             historyLines,
-            userInput ?? string.Empty);
+            userInput ?? string.Empty,
+            liveNewsLines);
 
         _logger.LogInformation(
-            "AssistantUseCase | personaId={PersonaId} userId={UserId} conversationId={ConversationId} promptChars={PromptChars} retrievalLines={RetrievalCount} historyLines={HistoryCount}",
+            "AssistantUseCase | personaId={PersonaId} userId={UserId} conversationId={ConversationId} promptChars={PromptChars} liveNewsLines={LiveNewsCount} retrievalLines={RetrievalCount} historyLines={HistoryCount}",
             config.Persona.Id,
             userId,
             conversationId,
             prompt.Length,
+            liveNewsLines.Count,
             retrievedLines.Count,
             historyLines.Count);
 
         return await _aiClient.ChatAsync(userId, prompt).ConfigureAwait(false);
+    }
+
+    private async Task<IReadOnlyList<string>> TryGetLiveNewsLinesAsync(
+        string? userInput,
+        CancellationToken cancellationToken)
+    {
+        var opts = _liveNewsOptions.Value;
+        if (!LiveNewsTriggerEvaluator.ShouldFetchLiveNews(userInput, opts))
+            return Array.Empty<string>();
+
+        var query = Truncate(userInput!, 240);
+        var max = Math.Clamp(opts.MaxHeadlines, 3, 5);
+        try
+        {
+            var items = await _newsSearchService
+                .GetHeadlinesAsync(query, max, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (items.Count == 0)
+                return Array.Empty<string>();
+
+            var lines = new List<string>(items.Count);
+            foreach (var h in items)
+            {
+                if (string.IsNullOrWhiteSpace(h.Title))
+                    continue;
+                lines.Add($"- {h.Title}");
+            }
+
+            return lines;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "AssistantUseCase: live news retrieval failed; continuing without headlines.");
+            return Array.Empty<string>();
+        }
     }
 
     private async Task<IReadOnlyList<string>> TryRetrieveContextLinesAsync(

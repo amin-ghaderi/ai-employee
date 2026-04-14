@@ -228,7 +228,7 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
                 && user.MessagesCount == 1)
             {
                 _flowTracker.Set("onboarding");
-                var onboardingMessage = new Message(conversationId, messageUserId, text, username, firstName, lastName);
+                var onboardingMessage = new Message(conversationId, messageUserId, text ?? string.Empty, username, firstName, lastName);
                 await _conversationRepository.AppendUserMessageAsync(conversationId, onboardingMessage).ConfigureAwait(false);
                 await TryEnqueueMessageEmbeddingAsync(onboardingMessage.Id).ConfigureAwait(false);
 
@@ -239,7 +239,7 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
                 return;
             }
 
-            var msg = new Message(conversationId, messageUserId, text, username, firstName, lastName);
+            var msg = new Message(conversationId, messageUserId, text ?? string.Empty, username, firstName, lastName);
             await _conversationRepository.AppendUserMessageAsync(conversationId, msg).ConfigureAwait(false);
             await TryEnqueueMessageEmbeddingAsync(msg.Id).ConfigureAwait(false);
 
@@ -336,7 +336,7 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
                 var response = await _assistantUseCase.Execute(
                     conversationId,
                     messageUserId,
-                    text,
+                    text ?? string.Empty,
                     judgeBotConfig,
                     cancellationToken).ConfigureAwait(false);
                 await _outgoingClient.SendMessageAsync(

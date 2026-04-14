@@ -27,7 +27,8 @@ public sealed class PromptComposer
         Persona persona,
         IReadOnlyList<string> retrievedContextLines,
         IReadOnlyList<string> historyLines,
-        string latestUserMessage)
+        string latestUserMessage,
+        IReadOnlyList<string>? liveNewsLines = null)
     {
         ArgumentNullException.ThrowIfNull(persona);
         ArgumentNullException.ThrowIfNull(retrievedContextLines);
@@ -38,11 +39,13 @@ public sealed class PromptComposer
 
         if (string.IsNullOrWhiteSpace(system))
         {
-            return BuildChatPromptWithoutSystem(retrievedContextLines, historyLines, input);
+            return BuildChatPromptWithoutSystem(retrievedContextLines, historyLines, input, liveNewsLines);
         }
 
         var sb = new StringBuilder();
         sb.Append("[SYSTEM]").AppendLine().AppendLine(system.Trim()).AppendLine();
+
+        AppendLiveNewsSection(sb, liveNewsLines);
 
         if (retrievedContextLines.Count > 0)
         {
@@ -67,9 +70,12 @@ public sealed class PromptComposer
     private static string BuildChatPromptWithoutSystem(
         IReadOnlyList<string> retrievedContextLines,
         IReadOnlyList<string> historyLines,
-        string latestUserMessage)
+        string latestUserMessage,
+        IReadOnlyList<string>? liveNewsLines = null)
     {
         var sb = new StringBuilder();
+        AppendLiveNewsSection(sb, liveNewsLines);
+
         if (retrievedContextLines.Count > 0)
         {
             sb.Append("[RETRIEVED CONTEXT]").AppendLine();
@@ -88,5 +94,16 @@ public sealed class PromptComposer
 
         sb.Append("[USER]").AppendLine().Append("User: ").Append(latestUserMessage);
         return sb.ToString();
+    }
+
+    private static void AppendLiveNewsSection(StringBuilder sb, IReadOnlyList<string>? liveNewsLines)
+    {
+        if (liveNewsLines is not { Count: > 0 })
+            return;
+
+        sb.Append("[LIVE NEWS]").AppendLine();
+        foreach (var line in liveNewsLines)
+            sb.AppendLine(line);
+        sb.AppendLine();
     }
 }

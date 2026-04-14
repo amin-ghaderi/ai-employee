@@ -12,6 +12,7 @@ using AiEmployee.Application.Prompting;
 using AiEmployee.Application.Services;
 using AiEmployee.Application.UseCases;
 using AiEmployee.Infrastructure.AI;
+using AiEmployee.Infrastructure.News;
 using AiEmployee.Infrastructure.BotConfig;
 using AiEmployee.Infrastructure.Messaging;
 using AiEmployee.Infrastructure.Persistence;
@@ -44,6 +45,8 @@ builder.Services.Configure<RagOptions>(
     builder.Configuration.GetSection(RagOptions.SectionName));
 builder.Services.Configure<EmbeddingOptions>(
     builder.Configuration.GetSection(EmbeddingOptions.SectionName));
+builder.Services.Configure<LiveNewsOptions>(
+    builder.Configuration.GetSection(LiveNewsOptions.SectionName));
 builder.Services.Configure<AppOptions>(
     builder.Configuration.GetSection(AppOptions.SectionName));
 builder.Services.AddMemoryCache();
@@ -68,6 +71,14 @@ builder.Services.AddHttpClient<IEmbeddingService, EmbeddingService>(client =>
 {
     client.Timeout = TimeSpan.FromMinutes(2);
 });
+builder.Services.AddHttpClient(GoogleNewsRssService.HttpClientName, (sp, client) =>
+{
+    var o = sp.GetRequiredService<IOptions<LiveNewsOptions>>().Value;
+    client.Timeout = TimeSpan.FromSeconds(Math.Clamp(o.RequestTimeoutSeconds, 5, 120));
+    var ua = string.IsNullOrWhiteSpace(o.UserAgent) ? "AiEmployee/1.0" : o.UserAgent.Trim();
+    client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", ua);
+});
+builder.Services.AddScoped<INewsSearchService, GoogleNewsRssService>();
 builder.Services.AddHttpClient<ITelegramClient, TelegramClient>();
 builder.Services.AddHttpClient<ITelegramWebhookApiClient, TelegramWebhookApiClient>(client =>
 {
