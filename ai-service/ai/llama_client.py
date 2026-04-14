@@ -19,7 +19,7 @@ if not logger.handlers:
 OLLAMA_GENERATE_URL = os.environ.get(
     "OLLAMA_BASE_URL", "http://localhost:11434"
 ).rstrip("/") + "/api/generate"
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gpt-oss:120b-cloud")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gpt-oss:20b-cloud")
 OLLAMA_TIMEOUT = float(os.environ.get("OLLAMA_TIMEOUT_SECONDS", "120"))
 
 logger.info("Using LLM model: %s", OLLAMA_MODEL)
