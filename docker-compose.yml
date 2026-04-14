@@ -75,9 +75,9 @@ services:
       # Not used when Database__Provider=Npgsql. Kept for fast rollback to Sqlite (override env + optional sqlite file).
       - api-data:/app/data
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
+      # Loads appsettings.Docker.json so Ai:BaseUrl uses the ai-service hostname (not localhost).
+      - ASPNETCORE_ENVIRONMENT=Docker
       - ASPNETCORE_URLS=http://+:5155
-      - Ai__BaseUrl=http://ai-service:8000
       # Default in Compose: PostgreSQL (hostname "postgres"). Override in .env to revert to SQLite.
       - Database__Provider=${Database__Provider:-Npgsql}
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=aiemployee;Username=aiemployee;Password=${POSTGRES_PASSWORD:-postgres}
@@ -124,20 +124,19 @@ services:
     #           capabilities: [gpu]
 
   # ───────────────────────────────────────────────
-  # ngrok tunnel (exposes .NET API publicly)
+  # ngrok tunnel (HTTPS public URL → api:5155 for Telegram webhooks)
+  # Set NGROK_AUTHTOKEN in .env (see .env.example). Dashboard: http://localhost:4040
   # ───────────────────────────────────────────────
   ngrok:
     image: ngrok/ngrok:latest
-    ports:
-      - "4040:4040"                  # ngrok web dashboard
-    environment:
-      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN:-}
     command: http api:5155
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
+    ports:
+      - "4040:4040"
     depends_on:
       - api
     restart: unless-stopped
-    profiles:
-      - tunnel                       # only starts with: docker compose --profile tunnel up
     networks:
       - backend
 

@@ -4,13 +4,13 @@
 
 **Goal:** Expose the local API on **HTTPS** so Telegram can call your webhooks.
 
-### Option A — Docker Compose ngrok profile
+### Option A — Docker Compose ngrok service
 
-The repo includes an **`ngrok`** service (profile **`tunnel`**) that forwards to the **`api`** container.
+The repo includes an **`ngrok`** service that forwards **HTTPS** traffic to the **`api`** container (`api:5155`). It starts with the default stack (`docker compose up -d`).
 
 ```bash
-# Set NGROK_AUTHTOKEN in .env or environment
-docker compose --profile tunnel up
+# Copy .env.example to .env and set NGROK_AUTHTOKEN (https://dashboard.ngrok.com/get-started/your-authtoken)
+docker compose up -d
 ```
 
 1. Open the ngrok dashboard (e.g. `http://localhost:4040`) and copy the **HTTPS** forwarding URL.
@@ -62,7 +62,7 @@ Services:
 | **ai-service** | 8000 | Python LLM gateway |
 | **admin-ui** | 5173 | Vite dev-style UI (bind-mount) |
 | **ollama** | 11434 | Local inference (optional) |
-| **ngrok** | 4040 | Tunnel UI (profile `tunnel`) |
+| **ngrok** | 4040 | Tunnel UI + HTTPS forwarding to **api** |
 
 **Persistence:** Default SQLite file **`aiemployee.db`** is created in the mounted workspace when using the compose file’s volume mapping. For production, prefer a **managed database** or **mounted volume** for the DB file path. For Docker Compose PostgreSQL, ETL, and connectivity conventions, see **[postgresql-migration-phase4.md](./postgresql-migration-phase4.md)**. For production cutover, rollback, and Postgres-primary operations, see **[postgresql-cutover-phase5.md](./postgresql-cutover-phase5.md)**.
 
