@@ -105,7 +105,7 @@ public sealed class PromptBuilder
         ArgumentNullException.ThrowIfNull(persona);
         ArgumentNullException.ThrowIfNull(wrapperTemplate);
 
-        var judgeTemplate = _behaviorPromptMapper.BuildJudgePrompt(persona, behavior);
+        var judgeTemplate = _behaviorPromptMapper.BuildJudgePrompt(persona);
         var hasInputPlaceholder = judgeTemplate.Contains(PromptTokens.Input, StringComparison.Ordinal);
 
         if (!wrapperTemplate.Template.Contains(PromptTokens.Transcript, StringComparison.Ordinal))

@@ -16,10 +16,11 @@ public sealed class Behavior
     public bool EnableChat { get; private set; }
     public bool EnableLead { get; private set; }
     public bool EnableJudge { get; private set; }
-    public string? JudgeInstruction { get; set; }
-    public string? JudgeSchemaJson { get; set; }
-    public string? LeadInstruction { get; set; }
-    public string? LeadSchemaJson { get; set; }
+
+    public bool EnableGatewayRouting { get; private set; }
+    public string? GatewayTriggerPhrases { get; private set; }
+    public GatewayPhraseMatchType GatewayMatchType { get; private set; }
+    public bool GatewayCaseSensitive { get; private set; }
 
     private Behavior()
     {
@@ -39,7 +40,11 @@ public sealed class Behavior
         string hotLeadTag,
         bool enableChat = true,
         bool enableLead = true,
-        bool enableJudge = true)
+        bool enableJudge = true,
+        bool enableGatewayRouting = false,
+        string? gatewayTriggerPhrases = null,
+        GatewayPhraseMatchType gatewayMatchType = GatewayPhraseMatchType.Contains,
+        bool gatewayCaseSensitive = false)
     {
         Id = id;
         JudgeContextMessageCount = judgeContextMessageCount;
@@ -55,6 +60,10 @@ public sealed class Behavior
         EnableChat = enableChat;
         EnableLead = enableLead;
         EnableJudge = enableJudge;
+        EnableGatewayRouting = enableGatewayRouting;
+        GatewayTriggerPhrases = gatewayTriggerPhrases;
+        GatewayMatchType = gatewayMatchType;
+        GatewayCaseSensitive = gatewayCaseSensitive;
     }
 
     public void ReplaceConfiguration(
@@ -70,7 +79,11 @@ public sealed class Behavior
         string hotLeadTag,
         bool enableChat,
         bool enableLead,
-        bool enableJudge)
+        bool enableJudge,
+        bool enableGatewayRouting,
+        string? gatewayTriggerPhrases,
+        GatewayPhraseMatchType gatewayMatchType,
+        bool gatewayCaseSensitive)
     {
         JudgeContextMessageCount = judgeContextMessageCount;
         JudgePerMessageMaxChars = judgePerMessageMaxChars;
@@ -85,19 +98,9 @@ public sealed class Behavior
         EnableChat = enableChat;
         EnableLead = enableLead;
         EnableJudge = enableJudge;
-    }
-
-    public object? GetJudgeSchema()
-    {
-        if (string.IsNullOrWhiteSpace(JudgeSchemaJson))
-            return null;
-        return System.Text.Json.JsonSerializer.Deserialize<object>(JudgeSchemaJson);
-    }
-
-    public object? GetLeadSchema()
-    {
-        if (string.IsNullOrWhiteSpace(LeadSchemaJson))
-            return null;
-        return System.Text.Json.JsonSerializer.Deserialize<object>(LeadSchemaJson);
+        EnableGatewayRouting = enableGatewayRouting;
+        GatewayTriggerPhrases = gatewayTriggerPhrases;
+        GatewayMatchType = gatewayMatchType;
+        GatewayCaseSensitive = gatewayCaseSensitive;
     }
 }

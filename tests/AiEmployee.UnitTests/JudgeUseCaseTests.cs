@@ -117,7 +117,11 @@ public class JudgeUseCaseTests
         public Task<LeadClassificationDto> ClassifyLeadAsync(string prompt) =>
             Task.FromResult(new LeadClassificationDto());
 
-        public Task<string> ChatAsync(string userId, string prompt) =>
+        public Task<string> ChatAsync(
+            string userId,
+            string prompt,
+            ChatCompletionRequestContext? context = null,
+            CancellationToken cancellationToken = default) =>
             Task.FromResult(string.Empty);
     }
 

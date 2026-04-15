@@ -12,6 +12,9 @@ public sealed class BotIntegrationDto
     public string ExternalId { get; set; } = string.Empty;
     public bool IsEnabled { get; set; }
 
+    public string? GatewayChannel { get; set; }
+    public string? GatewayExternalId { get; set; }
+
     /// <summary>
     /// True when this integration can participate in webhook admin flows (has a non-empty external id).
     /// </summary>

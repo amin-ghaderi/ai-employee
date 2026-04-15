@@ -23,6 +23,28 @@ public sealed class EfBotIntegrationRepository : IBotIntegrationRepository
             .ConfigureAwait(false);
     }
 
+    public async Task<BotIntegration?> GetByChannelAndExternalIdAsync(
+        string channel,
+        string externalId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(channel) || string.IsNullOrWhiteSpace(externalId))
+            return null;
+
+        var normalizedChannel = channel.Trim().ToLowerInvariant();
+        var trimmedExternalId = externalId.Trim();
+
+        return await _db.BotIntegrations
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                i =>
+                    i.Channel.Trim().ToLower() == normalizedChannel &&
+                    i.ExternalId == trimmedExternalId &&
+                    i.IsEnabled,
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
     public async Task<IReadOnlyList<BotIntegration>> ListAsync(Guid? botId, CancellationToken cancellationToken = default)
     {
         var query = _db.BotIntegrations.AsNoTracking().AsQueryable();
@@ -61,7 +83,13 @@ public sealed class EfBotIntegrationRepository : IBotIntegrationRepository
         if (existing is null)
             throw new KeyNotFoundException($"No bot integration was found for id '{integration.Id}'.");
 
-        existing.Update(integration.BotId, integration.Channel, integration.ExternalId, integration.IsEnabled);
+        existing.Update(
+            integration.BotId,
+            integration.Channel,
+            integration.ExternalId,
+            integration.IsEnabled,
+            integration.GatewayChannel,
+            integration.GatewayExternalId);
         try
         {
             await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

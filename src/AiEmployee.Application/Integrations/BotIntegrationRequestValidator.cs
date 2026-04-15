@@ -36,7 +36,8 @@ public static class BotIntegrationRequestValidator
         if (request.ExternalId is not null && string.IsNullOrWhiteSpace(request.ExternalId))
             errors.Add("externalId must not be empty when provided.");
 
-        if (request.BotId is null && request.Channel is null && request.ExternalId is null && request.IsEnabled is null)
+        if (request.BotId is null && request.Channel is null && request.ExternalId is null && request.IsEnabled is null
+            && request.GatewayChannel is null && request.GatewayExternalId is null)
             errors.Add("At least one field must be provided for update.");
 
         if (errors.Count > 0)

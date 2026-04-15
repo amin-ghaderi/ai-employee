@@ -1,39 +1,28 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+using Pgvector.EntityFrameworkCore;
 
 namespace AiEmployee.Infrastructure.Persistence;
 
-/// <summary>
-/// Design-time factory for EF Core CLI (migrations) without starting the web host.
-/// Set <c>Database__Provider</c> and <c>ConnectionStrings__DefaultConnection</c> for PostgreSQL.
-/// </summary>
+/// <summary>Design-time factory for EF Core CLI (migrations) without starting the web host.</summary>
 public sealed class AiEmployeeDbContextFactory : IDesignTimeDbContextFactory<AiEmployeeDbContext>
 {
     public AiEmployeeDbContext CreateDbContext(string[] args)
     {
-        var provider = Environment.GetEnvironmentVariable("Database__Provider") ?? "Sqlite";
-
         var connectionString =
-            Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
-            ?? (IsPostgresProvider(provider)
-                ? "Host=localhost;Port=5432;Database=aiemployee;Username=postgres;Password=postgres"
-                : "Data Source=aiemployee.db");
+            Environment.GetEnvironmentVariable("POSTGRES_DESIGN_CONNECTION")
+            ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
+            ?? "Host=localhost;Port=5432;Database=aiemployee;Username=aiemployee;Password=postgres";
 
         var optionsBuilder = new DbContextOptionsBuilder<AiEmployeeDbContext>();
-
-        if (IsPostgresProvider(provider))
+        optionsBuilder.UseNpgsql(connectionString, npgsql =>
         {
-            optionsBuilder.UseNpgsql(connectionString);
-        }
-        else
-        {
-            optionsBuilder.UseSqlite(connectionString);
-        }
+            npgsql.MigrationsHistoryTable("__EFMigrationsHistory_Postgres", "public");
+            npgsql.CommandTimeout(60);
+            npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(2), null);
+            npgsql.UseVector();
+        });
 
         return new AiEmployeeDbContext(optionsBuilder.Options);
     }
-
-    private static bool IsPostgresProvider(string provider) =>
-        provider.Equals("Npgsql", StringComparison.OrdinalIgnoreCase)
-        || provider.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase);
 }

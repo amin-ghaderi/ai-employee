@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AiEmployee.Application.Dtos.Personas;
 using AiEmployee.Application.Prompting;
 
@@ -47,7 +48,11 @@ public static class PersonaRequestValidator
     public static void Validate(CreatePersonaRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var errors = CollectErrors(request.DisplayName, request.Prompts, request.ClassificationSchema);
+        var errors = CollectErrors(
+            request.DisplayName,
+            request.Prompts,
+            request.ClassificationSchema,
+            request.PromptExtensions);
         if (errors.Count > 0)
             throw new PersonaValidationException(errors);
     }
@@ -55,7 +60,11 @@ public static class PersonaRequestValidator
     public static void Validate(UpdatePersonaRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var errors = CollectErrors(request.DisplayName, request.Prompts, request.ClassificationSchema);
+        var errors = CollectErrors(
+            request.DisplayName,
+            request.Prompts,
+            request.ClassificationSchema,
+            request.PromptExtensions);
         if (errors.Count > 0)
             throw new PersonaValidationException(errors);
     }
@@ -63,7 +72,8 @@ public static class PersonaRequestValidator
     private static List<string> CollectErrors(
         string displayName,
         PromptSectionsDto? prompts,
-        ClassificationSchemaDto? classificationSchema)
+        ClassificationSchemaDto? classificationSchema,
+        PersonaPromptExtensionsDto? promptExtensions)
     {
         var errors = new List<string>();
 
@@ -102,7 +112,38 @@ public static class PersonaRequestValidator
         ValidateStringList(classificationSchema.Intents, "classificationSchema.intents", errors);
         ValidateStringList(classificationSchema.Potentials, "classificationSchema.potentials", errors);
 
+        AddPromptExtensionJsonLintErrors(promptExtensions, errors);
+
         return errors;
+    }
+
+    private static void AddPromptExtensionJsonLintErrors(PersonaPromptExtensionsDto? extensions, List<string> errors)
+    {
+        if (extensions is null)
+            return;
+
+        AddJsonIfNonEmpty(extensions.ChatOutputSchemaJson, "promptExtensions.chatOutputSchemaJson", errors);
+        AddJsonIfNonEmpty(extensions.JudgeSchemaJson, "promptExtensions.judgeSchemaJson", errors);
+        AddJsonIfNonEmpty(extensions.LeadSchemaJson, "promptExtensions.leadSchemaJson", errors);
+    }
+
+    private static void AddJsonIfNonEmpty(string? raw, string fieldName, List<string> errors)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return;
+
+        var trimmed = raw.Trim();
+        if (trimmed == "{}" || trimmed.Equals("null", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        try
+        {
+            JsonDocument.Parse(trimmed);
+        }
+        catch (JsonException)
+        {
+            errors.Add($"{fieldName} must be valid JSON.");
+        }
     }
 
     private static void AddSystemPromptLintErrors(string system, List<string> errors)

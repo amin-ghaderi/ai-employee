@@ -25,13 +25,31 @@ using AiEmployee.Infrastructure.Integrations.Telegram;
 using AiEmployee.Infrastructure.Integrations.Slack;
 using AiEmployee.Infrastructure.Integrations.WhatsApp;
 using AiEmployee.Infrastructure.Telegram;
+using AiEmployee.Api.Gateway;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using Pgvector.EntityFrameworkCore;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.FeatureManagement;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
+using Polly;
+using Polly.Extensions.Http;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException(
+        "ConnectionStrings:DefaultConnection is not configured. PostgreSQL (Npgsql) is required.");
+
+RegisterOpenTelemetry(builder);
+
+builder.Services.AddFeatureManagement();
+builder.Services.Configure<GatewayOptions>(
+    builder.Configuration.GetSection(GatewayOptions.SectionName));
 builder.Services.Configure<TelegramSettings>(
     builder.Configuration.GetSection("Telegram"));
 builder.Services.Configure<WhatsAppSettings>(
@@ -63,36 +81,38 @@ builder.Services.AddCors(options =>
             .AllowAnyMethod();
     });
 });
+builder.Services.AddSingleton<IChatOutputSchemaValidator, JsonSchemaChatOutputValidator>();
 builder.Services.AddHttpClient<IAiClient, AiClient>(client =>
 {
     client.Timeout = TimeSpan.FromMinutes(5);
-});
+}).AddPolicyHandler(HttpRetryPolicy());
 builder.Services.AddHttpClient<IEmbeddingService, EmbeddingService>(client =>
 {
     client.Timeout = TimeSpan.FromMinutes(2);
-});
+}).AddPolicyHandler(HttpRetryPolicy());
 builder.Services.AddHttpClient(GoogleNewsRssService.HttpClientName, (sp, client) =>
 {
     var o = sp.GetRequiredService<IOptions<LiveNewsOptions>>().Value;
     client.Timeout = TimeSpan.FromSeconds(Math.Clamp(o.RequestTimeoutSeconds, 5, 120));
     var ua = string.IsNullOrWhiteSpace(o.UserAgent) ? "AiEmployee/1.0" : o.UserAgent.Trim();
     client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", ua);
-});
+}).AddPolicyHandler(HttpRetryPolicy());
 builder.Services.AddScoped<INewsSearchService, GoogleNewsRssService>();
-builder.Services.AddHttpClient<ITelegramClient, TelegramClient>();
+builder.Services.AddHttpClient<ITelegramClient, TelegramClient>()
+    .AddPolicyHandler(HttpRetryPolicy());
 builder.Services.AddHttpClient<ITelegramWebhookApiClient, TelegramWebhookApiClient>(client =>
 {
     client.Timeout = TimeSpan.FromMinutes(2);
-});
+}).AddPolicyHandler(HttpRetryPolicy());
 builder.Services.AddHttpClient("WhatsApp", client =>
 {
     client.Timeout = TimeSpan.FromMinutes(2);
-});
+}).AddPolicyHandler(HttpRetryPolicy());
 builder.Services.AddHttpClient<SlackMessageSender>(client =>
 {
     client.BaseAddress = new Uri("https://slack.com/api/");
     client.Timeout = TimeSpan.FromMinutes(2);
-});
+}).AddPolicyHandler(HttpRetryPolicy());
 builder.Services.AddScoped<ITelegramWebhookApplicationService, TelegramWebhookApplicationService>();
 builder.Services.AddScoped<IIntegrationProvider, TelegramIntegrationProvider>();
 builder.Services.AddScoped<IIntegrationProvider, GenericWebhookIntegrationProvider>();
@@ -101,59 +121,29 @@ builder.Services.AddScoped<IIntegrationProvider, SlackIntegrationProvider>();
 builder.Services.AddScoped<IIntegrationProviderRegistry, IntegrationProviderRegistry>();
 builder.Services.AddScoped<IIntegrationWebhookApplicationService, IntegrationWebhookApplicationService>();
 
-var provider = builder.Configuration["Database:Provider"] ?? "Sqlite";
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? throw new InvalidOperationException(
-        "ConnectionStrings:DefaultConnection is not configured.");
-
-var usePostgres = provider.Equals("Npgsql", StringComparison.OrdinalIgnoreCase)
-    || provider.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase);
-
-if (usePostgres)
-{
-    builder.Services.AddSingleton<MessageEmbeddingWorkQueue>();
-    builder.Services.AddSingleton<IMessageEmbeddingPublisher, ChannelMessageEmbeddingPublisher>();
-    builder.Services.AddHostedService<MessageEmbeddingIndexingBackgroundService>();
-
-    builder.Services.AddDbContext<AiEmployeePostgresDbContext>(options =>
-    {
-        options.UseNpgsql(connectionString, npgsql =>
-        {
-            npgsql.MigrationsHistoryTable("__EFMigrationsHistory_Postgres", "public");
-            npgsql.CommandTimeout(60);
-            npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(2), null);
-            npgsql.UseVector();
-        });
-    });
-
-    builder.Services.AddScoped<IVectorStore, PgVectorStore>();
-}
-else
-{
-    builder.Services.AddSingleton<IVectorStore, NullVectorStore>();
-    builder.Services.AddSingleton<IMessageEmbeddingPublisher, NoOpMessageEmbeddingPublisher>();
-}
+builder.Services.AddSingleton<MessageEmbeddingWorkQueue>();
+builder.Services.AddSingleton<IMessageEmbeddingPublisher, ChannelMessageEmbeddingPublisher>();
+builder.Services.AddHostedService<MessageEmbeddingIndexingBackgroundService>();
+builder.Services.AddScoped<IVectorStore, PgVectorStore>();
 
 builder.Services.AddDbContext<AiEmployeeDbContext>(options =>
 {
-    if (usePostgres)
+    options.UseNpgsql(connectionString, npgsql =>
     {
-        options.UseNpgsql(connectionString, npgsql =>
-        {
-            npgsql.CommandTimeout(60);
-            npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(2), null);
-            npgsql.UseVector();
-        });
-    }
-    else
-    {
-        options.UseSqlite(connectionString, sqlite =>
-        {
-            sqlite.CommandTimeout(60);
-        });
-    }
+        npgsql.MigrationsHistoryTable("__EFMigrationsHistory_Postgres", "public");
+        npgsql.CommandTimeout(60);
+        npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(2), null);
+        npgsql.UseVector();
+    });
 });
 
+builder.Services.AddHealthChecks()
+    .AddCheck("self", () => HealthCheckResult.Healthy(), tags: ["live"])
+    .AddDbContextCheck<AiEmployeeDbContext>(
+        name: "database",
+        tags: ["ready"]);
+
+builder.Services.AddSingleton<IGatewayTelemetry, GatewayTelemetryRecorder>();
 builder.Services.AddScoped<EfConversationRepository>();
 builder.Services.AddScoped<ITelegramUpdateDeduplicator, EfTelegramUpdateDeduplicator>();
 builder.Services.AddScoped<IConversationRepository>(sp =>
@@ -188,6 +178,9 @@ builder.Services.AddScoped<IChannelMessageSender, TelegramMessageSender>();
 builder.Services.AddScoped<IChannelMessageSender, SlackMessageSender>();
 builder.Services.AddScoped<RealFlowTestContext>();
 builder.Services.AddScoped<OutgoingMessageDispatcher>();
+builder.Services.AddScoped<IGatewayPhraseEvaluator, GatewayPhraseEvaluator>();
+builder.Services.AddScoped<GatewayDispatcher>();
+builder.Services.AddScoped<IGatewayDispatcher, GatewayDispatchFeatureDecorator>();
 builder.Services.AddScoped<IOutgoingMessageClient>(sp =>
     new CapturingOutgoingClientDecorator(
         sp.GetRequiredService<OutgoingMessageDispatcher>(),
@@ -208,21 +201,9 @@ var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
-    var databaseProvider = app.Configuration["Database:Provider"] ?? "Sqlite";
-    var usePostgresStartup = databaseProvider.Equals("Npgsql", StringComparison.OrdinalIgnoreCase)
-        || databaseProvider.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase);
-    if (usePostgresStartup)
-    {
-        var postgresDb = scope.ServiceProvider.GetRequiredService<AiEmployeePostgresDbContext>();
-        await postgresDb.Database.MigrateAsync();
-    }
-    else
-    {
-        var sqliteDb = scope.ServiceProvider.GetRequiredService<AiEmployeeDbContext>();
-        await sqliteDb.Database.MigrateAsync();
-    }
-
     var db = scope.ServiceProvider.GetRequiredService<AiEmployeeDbContext>();
+    await db.Database.MigrateAsync();
+
     var seeder = scope.ServiceProvider.GetRequiredService<BotConfigurationSeeder>();
     await seeder.SeedAsync();
 
@@ -246,6 +227,51 @@ app.UseRouting();
 app.UseMiddleware<RequestLoggingMiddleware>();
 app.UseCors();
 app.UseMiddleware<AdminAuthMiddleware>();
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = r => r.Tags.Contains("live"),
+});
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = r => r.Tags.Contains("ready"),
+});
 app.MapControllers();
 
 app.Run();
+
+static void RegisterOpenTelemetry(WebApplicationBuilder builder)
+{
+    var otlpEndpoint = builder.Configuration["OpenTelemetry:Otlp:Endpoint"]
+        ?? Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT");
+
+    if (string.IsNullOrWhiteSpace(otlpEndpoint))
+        return;
+
+    if (!Uri.TryCreate(otlpEndpoint, UriKind.Absolute, out var endpointUri))
+        return;
+
+    var version = typeof(Program).Assembly.GetName().Version?.ToString() ?? "0.0.0";
+
+    builder.Services.AddOpenTelemetry()
+        .ConfigureResource(resource => resource.AddService(
+            serviceName: "AiEmployee.Api",
+            serviceVersion: version))
+        .WithTracing(tracing => tracing
+            .AddSource(AiClientTelemetry.ActivitySource.Name)
+            .AddSource(GatewayTelemetryPrimitives.ActivitySource.Name)
+            .AddAspNetCoreInstrumentation()
+            .AddOtlpExporter(options => options.Endpoint = endpointUri))
+        .WithMetrics(metrics => metrics
+            .AddMeter(AiClientTelemetry.Meter.Name)
+            .AddMeter(GatewayTelemetryPrimitives.Meter.Name)
+            .AddAspNetCoreInstrumentation()
+            .AddOtlpExporter(options => options.Endpoint = endpointUri));
+}
+
+static IAsyncPolicy<HttpResponseMessage> HttpRetryPolicy() =>
+    HttpPolicyExtensions
+        .HandleTransientHttpError()
+        .OrResult(m => m.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+        .WaitAndRetryAsync(
+            3,
+            retryAttempt => TimeSpan.FromMilliseconds(200 * Math.Pow(2, retryAttempt - 1)));

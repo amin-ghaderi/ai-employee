@@ -23,7 +23,7 @@ export default function App() {
           Bots
         </button>
         <button type="button" onClick={() => setPage('personas')}>
-          Personas
+          Prompt Configuration
         </button>
         <button type="button" onClick={() => setPage('behaviors')}>
           Behaviors

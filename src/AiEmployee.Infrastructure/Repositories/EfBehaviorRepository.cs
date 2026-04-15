@@ -59,12 +59,11 @@ public sealed class EfBehaviorRepository : IBehaviorRepository
             behavior.HotLeadTag,
             behavior.EnableChat,
             behavior.EnableLead,
-            behavior.EnableJudge);
-
-        existing.JudgeInstruction = behavior.JudgeInstruction;
-        existing.JudgeSchemaJson = behavior.JudgeSchemaJson;
-        existing.LeadInstruction = behavior.LeadInstruction;
-        existing.LeadSchemaJson = behavior.LeadSchemaJson;
+            behavior.EnableJudge,
+            behavior.EnableGatewayRouting,
+            behavior.GatewayTriggerPhrases,
+            behavior.GatewayMatchType,
+            behavior.GatewayCaseSensitive);
 
         await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
     }

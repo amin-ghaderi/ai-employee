@@ -45,9 +45,10 @@ public sealed class LeadExecutionService : ILeadExecutionService
             answersMap,
             safeAnswerKeys);
 
-        var source = BehaviorPromptMapper.GetLeadPromptSource(behavior);
+        var source = BehaviorPromptMapper.GetLeadPromptSource(persona);
 
-        var schema = BehaviorPromptMapper.ParseSchema(behavior.LeadSchemaJson);
+        var schema = BehaviorPromptMapper.ParseSchema(
+            BehaviorPromptMapper.GetEffectiveLeadSchemaJson(persona));
 
         var sw = Stopwatch.StartNew();
         var result = await _aiClient.ClassifyLeadAsync(ctx.Prompt);

@@ -10,9 +10,11 @@ const DEFAULT_ENGAGEMENT_RULES = {
   stickyTags: [],
 };
 
-const EMPTY_SCHEMA_TEXT = JSON.stringify({}, null, 2);
-
 const INITIAL_FORM_STATE = {
+  enableGatewayRouting: false,
+  gatewayTriggerPhrases: '',
+  gatewayMatchType: '0',
+  gatewayCaseSensitive: false,
   judgeContextMessageCount: '5',
   judgePerMessageMaxChars: '2000',
   judgeCommandPrefix: '',
@@ -25,10 +27,6 @@ const INITIAL_FORM_STATE = {
   enableJudge: true,
   hotLeadPotentialValue: '',
   hotLeadTag: '',
-  judgeInstruction: '',
-  judgeSchema: {},
-  leadInstruction: '',
-  leadSchema: {},
 };
 
 function emptyForm() {
@@ -59,21 +57,8 @@ export default function BehaviorsPage() {
   const [validationError, setValidationError] = useState('');
   const [createError, setCreateError] = useState('');
   const [saving, setSaving] = useState(false);
-  const [judgeSchemaText, setJudgeSchemaText] = useState(EMPTY_SCHEMA_TEXT);
-  const [leadSchemaText, setLeadSchemaText] = useState(EMPTY_SCHEMA_TEXT);
   const [editingId, setEditingId] = useState(null);
   const [loadingEdit, setLoadingEdit] = useState(false);
-
-  function getJsonWarning(rawValue, label) {
-    const value = String(rawValue ?? '').trim();
-    if (!value) return '';
-    try {
-      JSON.parse(value);
-      return '';
-    } catch {
-      return `${label} is not valid JSON.`;
-    }
-  }
 
   const loadList = useCallback(async () => {
     setError('');
@@ -123,29 +108,16 @@ export default function BehaviorsPage() {
       return 'When both indices are set, captureIndex must be >= followUpIndex.';
     }
 
-    const judgeSchemaWarning = getJsonWarning(
-      judgeSchemaText,
-      'Judge output schema'
-    );
-    if (judgeSchemaWarning) console.warn(judgeSchemaWarning);
-    const leadSchemaWarning = getJsonWarning(
-      leadSchemaText,
-      'Lead output schema'
-    );
-    if (leadSchemaWarning) console.warn(leadSchemaWarning);
-    if (!String(form.judgeInstruction).includes('{{input}}')) {
-      console.warn(
-        'Judge instruction warning: missing {{input}} placeholder.'
-      );
+    if (form.enableGatewayRouting) {
+      const phrases = String(form.gatewayTriggerPhrases ?? '').trim();
+      if (!phrases) {
+        return 'When gateway routing is enabled, trigger phrases are required (comma-separated).';
+      }
     }
-    const leadInstruction = String(form.leadInstruction);
-    if (
-      !leadInstruction.includes('{{goal}}') ||
-      !leadInstruction.includes('{{experience}}')
-    ) {
-      console.warn(
-        'Lead instruction warning: missing {{goal}} or {{experience}} placeholder.'
-      );
+
+    const gmt = Number.parseInt(String(form.gatewayMatchType), 10);
+    if (!Number.isFinite(gmt) || gmt < 0 || gmt > 2) {
+      return 'gatewayMatchType must be 0 (Contains), 1 (Exact), or 2 (Regex).';
     }
 
     return null;
@@ -155,7 +127,12 @@ export default function BehaviorsPage() {
     const fu = parseOptionalNonNegInt(form.followUpIndex);
     const cap = parseOptionalNonNegInt(form.captureIndex);
     const answerKeys = parseCommaList(form.answerKeys);
+    const gatewayMatchType = Number.parseInt(String(form.gatewayMatchType), 10);
     return {
+      enableGatewayRouting: form.enableGatewayRouting,
+      gatewayTriggerPhrases: String(form.gatewayTriggerPhrases ?? '').trim() || null,
+      gatewayMatchType: Number.isFinite(gatewayMatchType) ? gatewayMatchType : 0,
+      gatewayCaseSensitive: form.gatewayCaseSensitive,
       judgeContextMessageCount: Number.parseInt(
         String(form.judgeContextMessageCount),
         10
@@ -179,10 +156,6 @@ export default function BehaviorsPage() {
       enableChat: form.enableChat,
       enableLead: form.enableLead,
       enableJudge: form.enableJudge,
-      judgeInstruction: String(form.judgeInstruction ?? '').trim() || null,
-      judgeSchemaJson: JSON.stringify(form.judgeSchema ?? {}),
-      leadInstruction: String(form.leadInstruction ?? '').trim() || null,
-      leadSchemaJson: JSON.stringify(form.leadSchema ?? {}),
     };
   }
 
@@ -192,9 +165,15 @@ export default function BehaviorsPage() {
     try {
       const b = await BehaviorsApi.getById(id);
       setEditingId(id);
-      const judgeSchema = b.judgeSchemaJson ? JSON.parse(b.judgeSchemaJson) : {};
-      const leadSchema = b.leadSchemaJson ? JSON.parse(b.leadSchemaJson) : {};
       setForm({
+        enableGatewayRouting: Boolean(b.enableGatewayRouting),
+        gatewayTriggerPhrases: b.gatewayTriggerPhrases ?? '',
+        gatewayMatchType: String(
+          b.gatewayMatchType !== undefined && b.gatewayMatchType !== null
+            ? b.gatewayMatchType
+            : '0'
+        ),
+        gatewayCaseSensitive: Boolean(b.gatewayCaseSensitive),
         judgeContextMessageCount: String(b.judgeContextMessageCount ?? '5'),
         judgePerMessageMaxChars: String(b.judgePerMessageMaxChars ?? '2000'),
         judgeCommandPrefix: b.judgeCommandPrefix ?? '',
@@ -207,13 +186,7 @@ export default function BehaviorsPage() {
         enableJudge: b.enableJudge ?? true,
         hotLeadPotentialValue: b.hotLeadPotentialValue ?? '',
         hotLeadTag: b.hotLeadTag ?? '',
-        judgeInstruction: b.judgeInstruction ?? '',
-        judgeSchema,
-        leadInstruction: b.leadInstruction ?? '',
-        leadSchema,
       });
-      setJudgeSchemaText(b.judgeSchemaJson ? JSON.stringify(judgeSchema, null, 2) : EMPTY_SCHEMA_TEXT);
-      setLeadSchemaText(b.leadSchemaJson ? JSON.stringify(leadSchema, null, 2) : EMPTY_SCHEMA_TEXT);
       setValidationError('');
     } catch (e) {
       setCreateError('Failed to load behavior: ' + (e.message || e));
@@ -225,8 +198,6 @@ export default function BehaviorsPage() {
   function handleCancelEdit() {
     setEditingId(null);
     setForm(emptyForm());
-    setJudgeSchemaText(EMPTY_SCHEMA_TEXT);
-    setLeadSchemaText(EMPTY_SCHEMA_TEXT);
     setValidationError('');
     setCreateError('');
   }
@@ -250,8 +221,6 @@ export default function BehaviorsPage() {
         await BehaviorsApi.create(buildRequestBody());
       }
       setForm(emptyForm());
-      setJudgeSchemaText(EMPTY_SCHEMA_TEXT);
-      setLeadSchemaText(EMPTY_SCHEMA_TEXT);
       setSaving(false);
       await loadList();
     } catch (e) {
@@ -271,12 +240,84 @@ export default function BehaviorsPage() {
   return (
     <div>
       <h1>Behaviors</h1>
+      <p style={{ maxWidth: 720 }}>
+        Judge and lead <strong>prompts</strong> (templates, instructions, output schemas) are configured per bot under{' '}
+        <strong>Prompt Configuration</strong>. This page covers runtime behavior: gateway routing triggers, judge context, lead flow indices, feature flags, and hot-lead rules.
+      </p>
       {editingId && (
         <p><strong>Editing behavior:</strong> {editingId}{' '}
           <button type="button" onClick={handleCancelEdit}>Cancel</button>
         </p>
       )}
       <form onSubmit={handleSubmit}>
+        <fieldset disabled={saving}>
+          <legend>Gateway Routing (Chat)</legend>
+          <div>
+            <label>
+              <input
+                type="checkbox"
+                checked={form.enableGatewayRouting}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    enableGatewayRouting: e.target.checked,
+                  }))
+                }
+              />{' '}
+              Enable gateway routing
+            </label>
+          </div>
+          <div>
+            <label htmlFor="bh-gw-phrases">Trigger phrases (comma-separated)</label>{' '}
+            <input
+              id="bh-gw-phrases"
+              type="text"
+              style={{ width: '100%', maxWidth: 560 }}
+              value={form.gatewayTriggerPhrases}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  gatewayTriggerPhrases: e.target.value,
+                }))
+              }
+              placeholder="e.g. help, speak to human"
+            />
+          </div>
+          <div>
+            <label htmlFor="bh-gw-match">Match type</label>{' '}
+            <select
+              id="bh-gw-match"
+              value={form.gatewayMatchType}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, gatewayMatchType: e.target.value }))
+              }
+            >
+              <option value="0">Contains</option>
+              <option value="1">Exact</option>
+              <option value="2">Regex</option>
+            </select>
+          </div>
+          {form.gatewayMatchType === '2' && (
+            <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem', color: '#64748b', maxWidth: 560 }}>
+              Regex patterns are validated at runtime; invalid regex may cause errors when users send messages.
+            </p>
+          )}
+          <div style={{ marginTop: '0.35rem' }}>
+            <label>
+              <input
+                type="checkbox"
+                checked={form.gatewayCaseSensitive}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    gatewayCaseSensitive: e.target.checked,
+                  }))
+                }
+              />{' '}
+              Case sensitive
+            </label>
+          </div>
+        </fieldset>
         <fieldset disabled={saving}>
           <legend>Judge</legend>
           <div>
@@ -342,45 +383,6 @@ export default function BehaviorsPage() {
           </div>
         </fieldset>
         <fieldset disabled={saving}>
-          <legend>Judge configuration</legend>
-          <div>
-            <label htmlFor="bh-judge-instruction">Judge instruction</label>
-            <textarea
-              id="bh-judge-instruction"
-              rows={6}
-              cols={80}
-              value={form.judgeInstruction}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, judgeInstruction: e.target.value }))
-              }
-            />
-            <p>Use {'{{input}}'} as placeholder for conversation</p>
-          </div>
-          <div>
-            <label htmlFor="bh-judge-schema">Judge output schema (JSON)</label>
-            <textarea
-              id="bh-judge-schema"
-              rows={6}
-              cols={80}
-              placeholder={`{\n  "winner": "string",\n  "reason": "string"\n}`}
-              value={judgeSchemaText}
-              onChange={(e) => {
-                const value = e.target.value;
-                setJudgeSchemaText(value);
-                try {
-                  const parsed = JSON.parse(value);
-                  setForm((f) => ({ ...f, judgeSchema: parsed }));
-                } catch {
-                  // Keep last valid object in form state.
-                }
-              }}
-            />
-            {getJsonWarning(judgeSchemaText, 'Judge output schema') && (
-              <p>{getJsonWarning(judgeSchemaText, 'Judge output schema')}</p>
-            )}
-          </div>
-        </fieldset>
-        <fieldset disabled={saving}>
           <legend>Lead (basic)</legend>
           <div>
             <label htmlFor="bh-fu">Follow-up index (optional)</label>{' '}
@@ -416,45 +418,6 @@ export default function BehaviorsPage() {
                 setForm((f) => ({ ...f, answerKeys: e.target.value }))
               }
             />
-          </div>
-        </fieldset>
-        <fieldset disabled={saving}>
-          <legend>Lead configuration</legend>
-          <div>
-            <label htmlFor="bh-lead-instruction">Lead instruction</label>
-            <textarea
-              id="bh-lead-instruction"
-              rows={6}
-              cols={80}
-              value={form.leadInstruction}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, leadInstruction: e.target.value }))
-              }
-            />
-            <p>Use {'{{goal}}'} and {'{{experience}}'} as placeholders</p>
-          </div>
-          <div>
-            <label htmlFor="bh-lead-schema">Lead output schema (JSON)</label>
-            <textarea
-              id="bh-lead-schema"
-              rows={6}
-              cols={80}
-              placeholder={`{\n  "user_type": "string",\n  "intent": "string",\n  "potential": "string"\n}`}
-              value={leadSchemaText}
-              onChange={(e) => {
-                const value = e.target.value;
-                setLeadSchemaText(value);
-                try {
-                  const parsed = JSON.parse(value);
-                  setForm((f) => ({ ...f, leadSchema: parsed }));
-                } catch {
-                  // Keep last valid object in form state.
-                }
-              }}
-            />
-            {getJsonWarning(leadSchemaText, 'Lead output schema') && (
-              <p>{getJsonWarning(leadSchemaText, 'Lead output schema')}</p>
-            )}
           </div>
         </fieldset>
         <fieldset disabled={saving}>
@@ -547,6 +510,7 @@ export default function BehaviorsPage() {
             <tr>
               <th>Id</th>
               <th>Prefix</th>
+              <th>Gateway</th>
               <th>Flags</th>
               <th></th>
             </tr>
@@ -556,6 +520,7 @@ export default function BehaviorsPage() {
               <tr key={b.id} style={editingId === b.id ? { background: '#fffde7' } : undefined}>
                 <td>{b.id}</td>
                 <td>{b.judgeCommandPrefix ?? ''}</td>
+                <td>{b.enableGatewayRouting ? 'on' : 'off'}</td>
                 <td>
                   chat {b.enableChat ? 'on' : 'off'} / lead{' '}
                   {b.enableLead ? 'on' : 'off'} / judge{' '}

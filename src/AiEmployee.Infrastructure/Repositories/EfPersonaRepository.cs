@@ -1,3 +1,4 @@
+using AiEmployee.Application.Dtos.Personas;
 using AiEmployee.Application.Interfaces;
 using AiEmployee.Domain.BotConfiguration;
 using AiEmployee.Infrastructure.Persistence;
@@ -47,6 +48,7 @@ public sealed class EfPersonaRepository : IPersonaRepository
         IReadOnlyList<string> userTypes,
         IReadOnlyList<string> intents,
         IReadOnlyList<string> potentials,
+        PersonaPromptExtensionsUpdate? promptExtensions = null,
         CancellationToken cancellationToken = default)
     {
         var existing = await _db.Personas
@@ -80,6 +82,32 @@ public sealed class EfPersonaRepository : IPersonaRepository
                 userTypes ?? Array.Empty<string>(),
                 intents ?? Array.Empty<string>(),
                 potentials ?? Array.Empty<string>()));
+
+        if (promptExtensions is { Apply: true })
+        {
+            await PromptVersionRecorder.RecordPersonaPromptExtensionsIfChangedAsync(
+                    _db,
+                    id,
+                    existing.ChatOutputSchemaJson,
+                    promptExtensions.ChatOutputSchemaJson,
+                    existing.JudgeInstruction,
+                    promptExtensions.JudgeInstruction,
+                    existing.JudgeSchemaJson,
+                    promptExtensions.JudgeSchemaJson,
+                    existing.LeadInstruction,
+                    promptExtensions.LeadInstruction,
+                    existing.LeadSchemaJson,
+                    promptExtensions.LeadSchemaJson,
+                    cancellationToken)
+                .ConfigureAwait(false);
+
+            existing.ReplacePromptExtensionFields(
+                promptExtensions.ChatOutputSchemaJson,
+                promptExtensions.JudgeInstruction,
+                promptExtensions.JudgeSchemaJson,
+                promptExtensions.LeadInstruction,
+                promptExtensions.LeadSchemaJson);
+        }
 
         await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
     }

@@ -5,9 +5,9 @@ using Microsoft.Extensions.Configuration;
 
 namespace AiEmployee.IntegrationTests;
 
-public sealed class WhatsAppWebhookVerifyFixture : WebApplicationFactory<Program>
+public sealed class WhatsAppWebhookVerifyFixture : PostgresWebApplicationFactory
 {
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    protected override void ConfigureWebHostExtras(IWebHostBuilder builder)
     {
         builder.ConfigureAppConfiguration(
             (_, config) =>

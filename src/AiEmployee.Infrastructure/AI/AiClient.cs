@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -7,6 +9,7 @@ using AiEmployee.Application;
 using AiEmployee.Application.Dtos;
 using AiEmployee.Application.Interfaces;
 using AiEmployee.Application.Options;
+using AiEmployee.Application.Prompting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -16,12 +19,20 @@ public class AiClient : IAiClient
 {
     private readonly HttpClient _httpClient;
     private readonly ILogger<AiClient> _logger;
+    private readonly IOptions<AiOptions> _options;
+    private readonly IChatOutputSchemaValidator _chatOutputSchemaValidator;
     private readonly string _baseUrl;
 
-    public AiClient(HttpClient httpClient, IOptions<AiOptions> options, ILogger<AiClient> logger)
+    public AiClient(
+        HttpClient httpClient,
+        IOptions<AiOptions> options,
+        ILogger<AiClient> logger,
+        IChatOutputSchemaValidator chatOutputSchemaValidator)
     {
         _httpClient = httpClient;
         _logger = logger;
+        _options = options;
+        _chatOutputSchemaValidator = chatOutputSchemaValidator;
         var baseUrl = options.Value.BaseUrl;
         if (string.IsNullOrWhiteSpace(baseUrl))
             baseUrl = "http://localhost:8000";
@@ -285,16 +296,37 @@ public class AiClient : IAiClient
         throw new AiServiceException("AI lead classification request failed.");
     }
 
-    public async Task<string> ChatAsync(string userId, string prompt)
+    public async Task<string> ChatAsync(
+        string userId,
+        string prompt,
+        ChatCompletionRequestContext? context = null,
+        CancellationToken cancellationToken = default)
     {
+        var opts = _options.Value;
+        var enforceSchema = opts.EnforceChatOutputSchema && HasNonTrivialChatSchema(context?.ChatOutputSchemaJson);
+        using var activity = AiClientTelemetry.ActivitySource.StartActivity("ai.chat");
+        activity?.SetTag("ai.persona.id", context?.PersonaId?.ToString() ?? string.Empty);
+        activity?.SetTag("ai.conversation.id", context?.ConversationId ?? string.Empty);
+        activity?.SetTag("ai.chat.schema.enforced", enforceSchema.ToString());
+
+        using var logScope = _logger.BeginScope(new Dictionary<string, object?>
+        {
+            ["AiOperation"] = "chat",
+            ["PersonaId"] = context?.PersonaId,
+            ["ConversationId"] = context?.ConversationId,
+            ["ChatSchemaEnforced"] = enforceSchema,
+        });
+
         for (var attempt = 0; attempt < 3; attempt++)
         {
+            var sw = Stopwatch.StartNew();
             try
             {
                 using var response = await _httpClient.PostAsJsonAsync(
                     $"{_baseUrl}/ai/chat",
-                    new { user_id = userId, prompt });
-                var raw = await response.Content.ReadAsStringAsync();
+                    new { user_id = userId, prompt },
+                    cancellationToken);
+                var raw = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
                 if (!response.IsSuccessStatusCode)
                 {
                     _logger.LogError(
@@ -308,35 +340,129 @@ public class AiClient : IAiClient
                 if (string.IsNullOrWhiteSpace(raw))
                     throw new AiServiceException("AI returned empty chat response.");
 
-                return ParseChatResponse(raw.Trim());
+                var inner = ParseChatResponse(raw.Trim());
+                var validated = ProcessChatStructuredOutput(inner, context, enforceSchema, activity);
+                sw.Stop();
+                AiClientTelemetry.ChatCompletionDurationSeconds.Record(
+                    sw.Elapsed.TotalSeconds,
+                    new TagList { { "schema_enforced", enforceSchema } });
+
+                _logger.LogInformation(
+                    "AI chat completed: Outcome=success, LatencyMs={LatencyMs}, Attempt={Attempt}, SchemaEnforced={SchemaEnforced}, ResponseChars={ResponseChars}",
+                    sw.ElapsedMilliseconds,
+                    attempt + 1,
+                    enforceSchema,
+                    validated.Length);
+
+                activity?.SetStatus(ActivityStatusCode.Ok);
+                return validated;
             }
-            catch (AiServiceException)
+            catch (AiServiceException ex)
             {
+                sw.Stop();
+                activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+                _logger.LogWarning(
+                    ex,
+                    "AI chat failed after {LatencyMs}ms (attempt {Attempt}): {Message}",
+                    sw.ElapsedMilliseconds,
+                    attempt + 1,
+                    ex.Message);
                 throw;
             }
             catch (JsonException ex)
             {
+                sw.Stop();
+                activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
                 throw new AiServiceException("AI chat request failed.", ex);
             }
-            catch (HttpRequestException) when (attempt < 2)
+            catch (HttpRequestException ex) when (attempt < 2)
             {
-                await Task.Delay(500 * (attempt + 1));
+                sw.Stop();
+                _logger.LogWarning(
+                    ex,
+                    "AI chat HTTP retry after {LatencyMs}ms (attempt {Attempt})",
+                    sw.ElapsedMilliseconds,
+                    attempt + 1);
+                await Task.Delay(500 * (attempt + 1), cancellationToken).ConfigureAwait(false);
             }
-            catch (TaskCanceledException) when (attempt < 2)
+            catch (TaskCanceledException ex) when (attempt < 2 && !cancellationToken.IsCancellationRequested)
             {
-                await Task.Delay(500 * (attempt + 1));
+                sw.Stop();
+                _logger.LogWarning(
+                    ex,
+                    "AI chat timeout retry after {LatencyMs}ms (attempt {Attempt})",
+                    sw.ElapsedMilliseconds,
+                    attempt + 1);
+                await Task.Delay(500 * (attempt + 1), cancellationToken).ConfigureAwait(false);
             }
             catch (HttpRequestException ex)
             {
+                sw.Stop();
+                activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
                 throw new AiServiceException("AI chat request failed.", ex);
             }
             catch (TaskCanceledException ex)
             {
+                sw.Stop();
+                activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
                 throw new AiServiceException("AI chat request failed.", ex);
             }
         }
 
+        activity?.SetStatus(ActivityStatusCode.Error);
         throw new AiServiceException("AI chat request failed.");
+    }
+
+    private string ProcessChatStructuredOutput(
+        string inner,
+        ChatCompletionRequestContext? context,
+        bool enforceSchema,
+        Activity? activity)
+    {
+        if (!enforceSchema || context is null || string.IsNullOrWhiteSpace(context.ChatOutputSchemaJson))
+            return inner;
+
+        if (!ChatAssistantJsonPayloadExtractor.TryExtractJsonObject(inner, out var jsonPayload))
+        {
+            AiClientTelemetry.ChatSchemaValidationFailures.Add(1);
+            activity?.SetTag("ai.chat.schema.result", "no_json_object");
+            _logger.LogWarning(
+                "Chat output schema enforced but model returned no JSON object. PersonaId={PersonaId}, Preview={Preview}",
+                context.PersonaId,
+                TruncateForLog(inner, 400));
+            throw new AiServiceException(
+                "Assistant reply must be a JSON object matching the configured chat output schema.");
+        }
+
+        var schemaJson = context.ChatOutputSchemaJson!;
+        var error = _chatOutputSchemaValidator.TryValidate(jsonPayload, schemaJson);
+        if (error is not null)
+        {
+            AiClientTelemetry.ChatSchemaValidationFailures.Add(1);
+            activity?.SetTag("ai.chat.schema.result", "invalid");
+            _logger.LogWarning(
+                "Chat JSON schema validation failed. PersonaId={PersonaId}, Error={Error}, Preview={Preview}",
+                context.PersonaId,
+                error,
+                TruncateForLog(jsonPayload, 600));
+            throw new AiServiceException(
+                "Assistant reply did not satisfy the configured chat output JSON schema: " + error);
+        }
+
+        using var doc = JsonDocument.Parse(jsonPayload);
+        var visible = ChatStructuredResponseFormatter.ToUserVisibleText(doc.RootElement);
+        activity?.SetTag("ai.chat.schema.result", "valid");
+        _logger.LogDebug("Chat JSON schema validation succeeded for PersonaId={PersonaId}", context.PersonaId);
+        return visible;
+    }
+
+    private static bool HasNonTrivialChatSchema(string? schemaJson)
+    {
+        if (string.IsNullOrWhiteSpace(schemaJson))
+            return false;
+        var t = schemaJson.Trim();
+        return !string.Equals(t, "{}", StringComparison.Ordinal)
+            && !string.Equals(t, "null", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string TruncateForLog(string? text, int maxChars)

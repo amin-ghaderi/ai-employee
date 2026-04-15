@@ -96,7 +96,12 @@ public sealed class AssistantUseCase
             retrievedLines.Count,
             historyLines.Count);
 
-        return await _aiClient.ChatAsync(userId, prompt).ConfigureAwait(false);
+        var chatContext = new ChatCompletionRequestContext(
+            config.Persona.Id,
+            conversationId,
+            config.Persona.ChatOutputSchemaJson);
+
+        return await _aiClient.ChatAsync(userId, prompt, chatContext, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<IReadOnlyList<string>> TryGetLiveNewsLinesAsync(

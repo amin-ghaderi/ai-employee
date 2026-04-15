@@ -14,11 +14,13 @@ internal static class PromptVersionRecorder
         AiEmployeeDbContext db,
         Guid personaId,
         PromptType promptType,
-        string oldContent,
-        string newContent,
+        string? oldContent,
+        string? newContent,
         CancellationToken cancellationToken)
     {
-        if (string.Equals(oldContent, newContent, StringComparison.Ordinal))
+        var oldNorm = oldContent ?? string.Empty;
+        var newNorm = newContent ?? string.Empty;
+        if (string.Equals(oldNorm, newNorm, StringComparison.Ordinal))
             return;
 
         var maxVersion = await db.PromptVersions
@@ -33,7 +35,7 @@ internal static class PromptVersionRecorder
             personaId,
             promptType,
             maxVersion + 1,
-            oldContent,
+            oldNorm,
             DateTime.UtcNow,
             CreatedBySystem));
     }
@@ -69,6 +71,66 @@ internal static class PromptVersionRecorder
         await AppendIfChangedAsync(db, personaId, PromptType.Judge, oldJudge, newJudge, cancellationToken)
             .ConfigureAwait(false);
         await AppendIfChangedAsync(db, personaId, PromptType.Lead, oldLead, newLead, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Records prior values for <see cref="Persona"/> extension columns when they change (dual-read rollout; Behavior columns unchanged).
+    /// </summary>
+    public static async Task RecordPersonaPromptExtensionsIfChangedAsync(
+        AiEmployeeDbContext db,
+        Guid personaId,
+        string? oldChatOutputSchemaJson,
+        string? newChatOutputSchemaJson,
+        string? oldJudgeInstruction,
+        string? newJudgeInstruction,
+        string? oldJudgeSchemaJson,
+        string? newJudgeSchemaJson,
+        string? oldLeadInstruction,
+        string? newLeadInstruction,
+        string? oldLeadSchemaJson,
+        string? newLeadSchemaJson,
+        CancellationToken cancellationToken)
+    {
+        await AppendIfChangedAsync(
+                db,
+                personaId,
+                PromptType.ChatOutputSchema,
+                oldChatOutputSchemaJson,
+                newChatOutputSchemaJson,
+                cancellationToken)
+            .ConfigureAwait(false);
+        await AppendIfChangedAsync(
+                db,
+                personaId,
+                PromptType.JudgeInstruction,
+                oldJudgeInstruction,
+                newJudgeInstruction,
+                cancellationToken)
+            .ConfigureAwait(false);
+        await AppendIfChangedAsync(
+                db,
+                personaId,
+                PromptType.JudgeSchema,
+                oldJudgeSchemaJson,
+                newJudgeSchemaJson,
+                cancellationToken)
+            .ConfigureAwait(false);
+        await AppendIfChangedAsync(
+                db,
+                personaId,
+                PromptType.LeadInstruction,
+                oldLeadInstruction,
+                newLeadInstruction,
+                cancellationToken)
+            .ConfigureAwait(false);
+        await AppendIfChangedAsync(
+                db,
+                personaId,
+                PromptType.LeadSchema,
+                oldLeadSchemaJson,
+                newLeadSchemaJson,
+                cancellationToken)
             .ConfigureAwait(false);
     }
 }

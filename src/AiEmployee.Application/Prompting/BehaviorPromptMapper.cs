@@ -13,68 +13,136 @@ public sealed class BehaviorPromptMapper
         _logger = logger;
     }
 
-    public string BuildJudgePrompt(Persona persona, Behavior behavior)
+    /// <summary>Builds the general chat system block: chat instruction plus optional output schema appendix.</summary>
+    public static string BuildChatSystemContent(Persona persona)
     {
         ArgumentNullException.ThrowIfNull(persona);
-        ArgumentNullException.ThrowIfNull(behavior);
+        var system = (persona.Prompts.System ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(persona.ChatOutputSchemaJson))
+            return system;
 
-        var instruction = behavior.JudgeInstruction;
-        var schema = ParseSchema(behavior.JudgeSchemaJson);
-        if (!HasJudgeOverride(behavior))
+        var schema = ParseSchema(persona.ChatOutputSchemaJson);
+        if (IsSchemaEmpty(schema))
+            return system;
+
+        var schemaText = SerializeSchema(schema);
+        if (string.IsNullOrWhiteSpace(schemaText))
+            return system;
+
+        if (string.IsNullOrWhiteSpace(system))
         {
-            _logger.LogInformation("PromptSource = Persona (Judge)");
-            return persona.Prompts.Judge;
+            return
+                "You are a helpful assistant. Your reply MUST be valid JSON conforming to the following schema:"
+                + Environment.NewLine
+                + schemaText;
         }
 
-        var combined = CombineInstructionAndSchema(instruction, schema);
-        WarnIfMissingJudgeToken(combined);
-        _logger.LogInformation("PromptSource = Behavior (Judge)");
-        return combined;
+        return
+            system
+            + Environment.NewLine
+            + Environment.NewLine
+            + "Your reply MUST be valid JSON conforming to the following schema:"
+            + Environment.NewLine
+            + schemaText;
     }
 
-    public string BuildLeadPrompt(Persona persona, Behavior behavior)
+    public string BuildJudgePrompt(Persona persona)
     {
         ArgumentNullException.ThrowIfNull(persona);
-        ArgumentNullException.ThrowIfNull(behavior);
 
-        var instruction = behavior.LeadInstruction;
-        var schema = ParseSchema(behavior.LeadSchemaJson);
-        if (string.IsNullOrWhiteSpace(instruction) && IsSchemaEmpty(schema))
+        if (HasPersonaJudgeExtensions(persona))
         {
-            _logger.LogInformation("PromptSource = Persona (Lead)");
-            return persona.Prompts.Lead;
+            var combined = CombineInstructionAndSchemaStatic(persona.JudgeInstruction, ParseSchema(persona.JudgeSchemaJson));
+            if (!string.IsNullOrWhiteSpace(combined))
+            {
+                WarnIfMissingJudgeToken(combined, "Persona-extensions");
+                _logger.LogInformation("PromptSource = Persona-extensions (Judge)");
+                return combined;
+            }
+
+            _logger.LogWarning(
+                "Persona judge extensions were present but produced an empty combined prompt; falling back to template.");
         }
 
-        var combined = CombineInstructionAndSchema(instruction, schema);
-        WarnIfMissingLeadTokens(combined);
-        _logger.LogInformation("PromptSource = Behavior (Lead)");
-        return combined;
+        _logger.LogInformation("PromptSource = Persona-template (Judge)");
+        return persona.Prompts.Judge;
     }
 
-    public static bool HasJudgeOverride(Behavior behavior)
+    public string BuildLeadPrompt(Persona persona)
     {
-        ArgumentNullException.ThrowIfNull(behavior);
-        return
-            !string.IsNullOrWhiteSpace(behavior.JudgeInstruction)
-            || !string.IsNullOrWhiteSpace(behavior.JudgeSchemaJson);
+        ArgumentNullException.ThrowIfNull(persona);
+
+        if (HasPersonaLeadExtensions(persona))
+        {
+            var combined = CombineInstructionAndSchemaStatic(persona.LeadInstruction, ParseSchema(persona.LeadSchemaJson));
+            if (!string.IsNullOrWhiteSpace(combined))
+            {
+                WarnIfMissingLeadTokens(combined, "Persona-extensions");
+                _logger.LogInformation("PromptSource = Persona-extensions (Lead)");
+                return combined;
+            }
+
+            _logger.LogWarning(
+                "Persona lead extensions were present but produced an empty combined prompt; falling back to template.");
+        }
+
+        _logger.LogInformation("PromptSource = Persona-template (Lead)");
+        return persona.Prompts.Lead;
     }
 
-    public static string GetJudgePromptSource(Behavior behavior)
+    public static bool HasPersonaJudgeExtensions(Persona persona)
     {
-        return HasJudgeOverride(behavior) ? "Behavior" : "Persona";
+        ArgumentNullException.ThrowIfNull(persona);
+        if (!string.IsNullOrWhiteSpace(persona.JudgeInstruction))
+            return true;
+        return !IsTrivialSchemaJson(persona.JudgeSchemaJson);
     }
 
-    public static bool HasLeadOverride(Behavior behavior)
+    public static bool HasPersonaLeadExtensions(Persona persona)
     {
-        ArgumentNullException.ThrowIfNull(behavior);
-        return
-            !string.IsNullOrWhiteSpace(behavior.LeadInstruction)
-            || !string.IsNullOrWhiteSpace(behavior.LeadSchemaJson);
+        ArgumentNullException.ThrowIfNull(persona);
+        if (!string.IsNullOrWhiteSpace(persona.LeadInstruction))
+            return true;
+        return !IsTrivialSchemaJson(persona.LeadSchemaJson);
     }
 
-    public static string GetLeadPromptSource(Behavior behavior)
+    /// <summary>Effective prompt origin label for admin/debug (Persona-extensions vs Persona-template).</summary>
+    public static string GetJudgePromptSource(Persona persona)
     {
-        return HasLeadOverride(behavior) ? "Behavior" : "Persona";
+        ArgumentNullException.ThrowIfNull(persona);
+        if (HasPersonaJudgeExtensions(persona))
+        {
+            var combined = CombineInstructionAndSchemaStatic(persona.JudgeInstruction, ParseSchema(persona.JudgeSchemaJson));
+            if (!string.IsNullOrWhiteSpace(combined))
+                return "Persona-extensions";
+        }
+
+        return "Persona-template";
+    }
+
+    public static string GetLeadPromptSource(Persona persona)
+    {
+        ArgumentNullException.ThrowIfNull(persona);
+        if (HasPersonaLeadExtensions(persona))
+        {
+            var combined = CombineInstructionAndSchemaStatic(persona.LeadInstruction, ParseSchema(persona.LeadSchemaJson));
+            if (!string.IsNullOrWhiteSpace(combined))
+                return "Persona-extensions";
+        }
+
+        return "Persona-template";
+    }
+
+    public static string? GetEffectiveJudgeSchemaJson(Persona persona)
+    {
+        ArgumentNullException.ThrowIfNull(persona);
+        return persona.JudgeSchemaJson;
+    }
+
+    public static string? GetEffectiveLeadSchemaJson(Persona persona)
+    {
+        ArgumentNullException.ThrowIfNull(persona);
+        return persona.LeadSchemaJson;
     }
 
     public static object? ParseSchema(string? schemaJson)
@@ -96,7 +164,15 @@ public sealed class BehaviorPromptMapper
         }
     }
 
-    private static string CombineInstructionAndSchema(string? instruction, object? schema)
+    private static bool IsTrivialSchemaJson(string? schemaJson)
+    {
+        if (string.IsNullOrWhiteSpace(schemaJson))
+            return true;
+        var t = schemaJson.Trim();
+        return t == "{}" || t.Equals("null", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string CombineInstructionAndSchemaStatic(string? instruction, object? schema)
     {
         var trimmedInstruction = (instruction ?? string.Empty).Trim();
         var schemaText = SerializeSchema(schema);
@@ -113,29 +189,32 @@ public sealed class BehaviorPromptMapper
         return $"{trimmedInstruction}{Environment.NewLine}{Environment.NewLine}Return JSON:{Environment.NewLine}{schemaText}";
     }
 
-    private void WarnIfMissingJudgeToken(string prompt)
+    private void WarnIfMissingJudgeToken(string prompt, string source)
     {
         if (!prompt.Contains(PromptTokens.Input, StringComparison.Ordinal))
         {
             _logger.LogWarning(
-                "Behavior judge prompt override is missing placeholder {Placeholder}.",
+                "{Source} judge prompt is missing placeholder {Placeholder}.",
+                source,
                 PromptTokens.Input);
         }
     }
 
-    private void WarnIfMissingLeadTokens(string prompt)
+    private void WarnIfMissingLeadTokens(string prompt, string source)
     {
         if (!prompt.Contains(PromptTokens.Goal, StringComparison.Ordinal))
         {
             _logger.LogWarning(
-                "Behavior lead prompt override is missing placeholder {Placeholder}.",
+                "{Source} lead prompt is missing placeholder {Placeholder}.",
+                source,
                 PromptTokens.Goal);
         }
 
         if (!prompt.Contains(PromptTokens.Experience, StringComparison.Ordinal))
         {
             _logger.LogWarning(
-                "Behavior lead prompt override is missing placeholder {Placeholder}.",
+                "{Source} lead prompt is missing placeholder {Placeholder}.",
+                source,
                 PromptTokens.Experience);
         }
     }
@@ -176,5 +255,4 @@ public sealed class BehaviorPromptMapper
 
         return JsonSerializer.Serialize(schema, new JsonSerializerOptions { WriteIndented = true });
     }
-
 }

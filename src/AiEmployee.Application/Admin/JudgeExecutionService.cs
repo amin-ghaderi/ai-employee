@@ -76,11 +76,12 @@ public sealed class JudgeExecutionService : IJudgeExecutionService
             debug.PersonaId = config.Persona.Id.ToString();
             debug.BehaviorId = config.Behavior.Id.ToString();
             debug.Channel = resolveMessage.Channel;
-            debug.PromptSource = BehaviorPromptMapper.GetJudgePromptSource(config.Behavior);
-            debug.Schema = BehaviorPromptMapper.ParseSchema(config.Behavior.JudgeSchemaJson);
+            debug.PromptSource = BehaviorPromptMapper.GetJudgePromptSource(config.Persona);
+            debug.Schema = BehaviorPromptMapper.ParseSchema(
+                BehaviorPromptMapper.GetEffectiveJudgeSchemaJson(config.Persona));
 
             var judgeTemplate = new BehaviorPromptMapper(NullLogger<BehaviorPromptMapper>.Instance)
-                .BuildJudgePrompt(config.Persona, config.Behavior);
+                .BuildJudgePrompt(config.Persona);
             debug.HasInputToken = judgeTemplate.Contains(PromptTokens.Input, StringComparison.Ordinal);
             debug.HasGoalToken = judgeTemplate.Contains(PromptTokens.Goal, StringComparison.Ordinal);
             debug.HasExperienceToken = judgeTemplate.Contains(PromptTokens.Experience, StringComparison.Ordinal);

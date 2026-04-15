@@ -10,8 +10,8 @@ ASP.NET Core binds hierarchical configuration. Use **`__`** (double underscore) 
 | **`Telegram__BotToken`** / `Telegram:BotToken` | Optional legacy default bot token. **Preferred:** store each bot token in **`BotIntegrations.ExternalId`** for `channel = telegram`. |
 | **`Ai__BaseUrl`** / `Ai:BaseUrl` | Base URL of the Python **ai-service** (e.g. `http://localhost:8000` or `http://ai-service:8000` in Docker). |
 | **`Admin__ApiKey`** / `Admin:ApiKey` | Shared secret for **`X-Admin-Key`** on **`/admin/**`** routes. Must be non-empty for admin access. |
-| **`Database__Provider`** / `Database:Provider` | **`Npgsql`** for PostgreSQL (recommended for production and default in `docker-compose.yml`). Use **`Sqlite`** only for local or emergency rollback; must match the connection string format. |
-| **`ConnectionStrings__DefaultConnection`** | **PostgreSQL:** e.g. `Host=postgres;Port=5432;Database=aiemployee;Username=…;Password=…`. **SQLite (deprecated for production):** e.g. `Data Source=/app/data/aiemployee.db`. |
+| **`ConnectionStrings__DefaultConnection`** | **PostgreSQL (required):** e.g. `Host=postgres;Port=5432;Database=aiemployee;Username=…;Password=…`. Use a **pgvector**-capable server (see `docker-compose.yml`). |
+| **`OTEL_EXPORTER_OTLP_ENDPOINT`** / `OpenTelemetry:Otlp:Endpoint` | Optional. When set to an absolute OTLP URL, exports **traces** and **metrics** (including `AiEmployee.AI`). See `docs/PHASE7_POSTGRES_ONLY.md`. |
 
 ## Environment-specific notes
 

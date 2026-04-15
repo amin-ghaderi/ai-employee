@@ -1,7 +1,6 @@
 using AiEmployee.Application.Interfaces;
 using AiEmployee.Domain.Entities;
 using AiEmployee.Infrastructure.Persistence;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
@@ -41,12 +40,6 @@ public sealed class EfTelegramUpdateDeduplicator : ITelegramUpdateDeduplicator
 
     private static bool IsUniqueConstraintViolation(DbUpdateException ex)
     {
-        if (ex.InnerException is PostgresException pg)
-            return pg.SqlState == "23505";
-
-        if (ex.InnerException is SqliteException sqlite)
-            return sqlite.SqliteExtendedErrorCode == 2067; // SQLITE_CONSTRAINT_UNIQUE
-
-        return false;
+        return ex.InnerException is PostgresException pg && pg.SqlState == PostgresErrorCodes.UniqueViolation;
     }
 }

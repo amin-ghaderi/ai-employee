@@ -5,13 +5,13 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace AiEmployee.IntegrationTests;
 
-public sealed class AdminSettingsE2ETests : IClassFixture<WebApplicationFactory<Program>>, IDisposable
+public sealed class AdminSettingsE2ETests : IClassFixture<PostgresWebApplicationFactory>, IDisposable
 {
     private const string ValidAdminKey = "your-secret-key";
 
     private readonly HttpClient _client;
 
-    public AdminSettingsE2ETests(WebApplicationFactory<Program> factory)
+    public AdminSettingsE2ETests(PostgresWebApplicationFactory factory)
     {
         _client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {

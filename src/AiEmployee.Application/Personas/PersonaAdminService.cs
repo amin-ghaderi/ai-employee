@@ -45,6 +45,16 @@ public sealed class PersonaAdminService : IPersonaAdminService
         if (existing is null)
             throw new KeyNotFoundException($"No persona was found for id '{id}'.");
 
+        var extensionsUpdate = request.PromptExtensions is null
+            ? null
+            : new PersonaPromptExtensionsUpdate(
+                Apply: true,
+                request.PromptExtensions.ChatOutputSchemaJson,
+                request.PromptExtensions.JudgeInstruction,
+                request.PromptExtensions.JudgeSchemaJson,
+                request.PromptExtensions.LeadInstruction,
+                request.PromptExtensions.LeadSchemaJson);
+
         await _repository.UpdateAsync(
             id,
             request.DisplayName,
@@ -54,6 +64,7 @@ public sealed class PersonaAdminService : IPersonaAdminService
             request.ClassificationSchema.UserTypes ?? Array.Empty<string>(),
             request.ClassificationSchema.Intents ?? Array.Empty<string>(),
             request.ClassificationSchema.Potentials ?? Array.Empty<string>(),
+            extensionsUpdate,
             cancellationToken).ConfigureAwait(false);
 
         var updated = await _repository.GetByIdAsync(id, cancellationToken).ConfigureAwait(false)

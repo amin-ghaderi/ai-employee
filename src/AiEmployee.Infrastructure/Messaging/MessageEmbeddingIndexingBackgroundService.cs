@@ -86,8 +86,8 @@ public sealed class MessageEmbeddingIndexingBackgroundService : BackgroundServic
         if (string.IsNullOrWhiteSpace(message.Text))
             return;
 
-        var postgresDb = scope.ServiceProvider.GetRequiredService<AiEmployeePostgresDbContext>();
-        if (await postgresDb.MessageEmbeddings.AnyAsync(e => e.MessageId == messageId, cancellationToken)
+        var db = scope.ServiceProvider.GetRequiredService<AiEmployeeDbContext>();
+        if (await db.MessageEmbeddings.AnyAsync(e => e.MessageId == messageId, cancellationToken)
                 .ConfigureAwait(false))
         {
             return;

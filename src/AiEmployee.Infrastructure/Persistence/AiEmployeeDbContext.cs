@@ -1,10 +1,13 @@
 using AiEmployee.Domain.BotConfiguration;
 using AiEmployee.Domain.Entities;
 using AiEmployee.Domain.Settings;
+using AiEmployee.Infrastructure.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
+using Pgvector.EntityFrameworkCore;
 
 namespace AiEmployee.Infrastructure.Persistence;
 
+/// <summary>Canonical EF Core context for PostgreSQL (runtime, migrations, and design-time).</summary>
 public sealed class AiEmployeeDbContext : DbContext
 {
     public AiEmployeeDbContext(DbContextOptions<AiEmployeeDbContext> options)
@@ -29,10 +32,11 @@ public sealed class AiEmployeeDbContext : DbContext
     public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
     public DbSet<ProcessedTelegramUpdate> ProcessedTelegramUpdates => Set<ProcessedTelegramUpdate>();
 
+    public DbSet<MessageEmbeddingEntity> MessageEmbeddings => Set<MessageEmbeddingEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.ApplyConfigurationsFromAssembly(
-            typeof(AiEmployeeDbContext).Assembly,
-            t => t != typeof(MessageEmbeddingEntityConfiguration));
+        modelBuilder.HasPostgresExtension("vector");
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(AiEmployeeDbContext).Assembly);
     }
 }

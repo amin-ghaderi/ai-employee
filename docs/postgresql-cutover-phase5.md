@@ -1,5 +1,7 @@
 # Phase 5 — PostgreSQL cutover (production orientation)
 
+> **Phase 7:** SQLite and `Database__Provider` are **removed**. The API always uses PostgreSQL via **`AiEmployeeDbContext`** and **`ConnectionStrings__DefaultConnection`**. See [PHASE7_POSTGRES_ONLY.md](./PHASE7_POSTGRES_ONLY.md).
+
 This document describes the **operational cutover** from SQLite to PostgreSQL for the AI Employee Platform after Phase 4 (data migration) is complete. It applies to **configuration and deployment only**; application C# and EF migrations are unchanged.
 
 ---
@@ -9,8 +11,8 @@ This document describes the **operational cutover** from SQLite to PostgreSQL fo
 | Layer | Responsibility |
 |--------|----------------|
 | **PostgreSQL** | Primary relational store in Docker Compose and recommended production topology. |
-| **API (`AiEmployee.Api`)** | Uses `Database__Provider` + `ConnectionStrings__DefaultConnection`. With **`Npgsql`**, both `AiEmployeePostgresDbContext` (migrations) and `AiEmployeeDbContext` target PostgreSQL per existing registration. |
-| **SQLite** | **Deprecated for production.** Remains in the repository for development and **emergency rollback** only (no removal of code or packages in Phase 5). |
+| **API (`AiEmployee.Api`)** | Single **`AiEmployeeDbContext`** (Npgsql + pgvector). **`ConnectionStrings__DefaultConnection`** must point at PostgreSQL in every environment. |
+| **SQLite** | **Removed** in Phase 7. Historical rollback notes in later sections are **obsolete**. |
 | **ai-service** | Unchanged; API reaches it via `Ai__BaseUrl`. |
 | **admin-ui** | Consumes API at `VITE_API_URL`; no direct database access. |
 
@@ -52,32 +54,18 @@ For ETL and host-vs-container connectivity patterns, see [postgresql-migration-p
 
 ## 3. Environment variables
 
-### 3.1 API — PostgreSQL primary (Compose defaults)
+### 3.1 API — PostgreSQL (Compose defaults)
 
 | Variable | Example / default in `docker-compose.yml` |
 |----------|----------------------------------------|
-| `Database__Provider` | `Npgsql` (default via `${Database__Provider:-Npgsql}`) |
 | `ConnectionStrings__DefaultConnection` | `Host=postgres;Port=5432;Database=aiemployee;Username=aiemployee;Password=${POSTGRES_PASSWORD:-postgres}` |
 | `Ai__BaseUrl` | `http://ai-service:8000` |
 | `Admin__ApiKey` | `${ADMIN_API_KEY:-your-secret-key}` (replace in real deployments) |
 
-### 3.2 Rollback — SQLite (emergency only)
+### 3.2 Production (Kubernetes / VM)
 
-Use a **gitignored** `docker-compose.override.yml` or temporary env:
-
-| Variable | Value |
-|----------|--------|
-| `Database__Provider` | `Sqlite` |
-| `ConnectionStrings__DefaultConnection` | `Data Source=/app/data/aiemployee.db` |
-
-Ensure a valid `aiemployee.db` exists under the **`api-data`** volume mount (`/app/data`) before switching back.
-
-### 3.3 Production (Kubernetes / VM)
-
-- Set **`Database__Provider=Npgsql`** (or `PostgreSQL` if your config layer accepts it).
-- Supply a managed connection string (host, user, password from secret store).
-- **Omit** SQLite file mounts unless rollback is required.
-- See [examples/appsettings.Production.example.json](./examples/appsettings.Production.example.json) for JSON-oriented templates.
+- Supply a managed **PostgreSQL** connection string (pgvector-capable).
+- See [examples/appsettings.Production.example.json](./examples/appsettings.Production.example.json) and [PHASE7_POSTGRES_ONLY.md](./PHASE7_POSTGRES_ONLY.md).
 
 ---
 
@@ -101,13 +89,13 @@ docker exec aiemployee-postgres psql -U aiemployee -d aiemployee -c \
 
 **Expect:** `__EFMigrationsHistory_Postgres` exists.
 
-### 4.2 API runtime (Npgsql, no SQLite path active)
+### 4.2 API runtime (Npgsql)
 
 ```bash
 docker compose logs api --tail 150
 ```
 
-**Expect:** EF initialized with **Npgsql**; connections to **`postgres:5432`** (or your managed host). When `Database__Provider` is **not** `Sqlite`, you should **not** see SQLite provider initialization for `AiEmployeeDbContext`.
+**Expect:** EF initialized with **Npgsql**; connections to **`postgres:5432`** (or your managed host). There is no alternate database provider.
 
 ### 4.3 Admin API smoke test
 
@@ -129,39 +117,15 @@ X-Admin-Key: <your Admin__ApiKey>
 
 ---
 
-## 5. SQLite decommissioning (configuration level)
+## 5. SQLite decommissioning (Phase 7)
 
-- **Production examples** use PostgreSQL only; SQLite connection strings are removed from **production-oriented** samples (see `docs/examples/appsettings.Production.example.json`).
-- **Repository:** SQLite EF provider, `appsettings.json` defaults for local dev, and **api-data** volume in Compose remain for **rollback and developer workflows** — no binary or migration removal in Phase 5.
-- **Compose `api-data` volume:** Not required for Postgres-only **runtime** (API does not read `/app/data` when provider is `Npgsql`). The volume is **retained in `docker-compose.yml`** so rollback to SQLite does not require volume recreation.
+SQLite packages, migrations, and provider switching are **removed**. Local development and tests use **PostgreSQL** (local install or Docker; integration tests use Testcontainers). The **`api-data`** volume in Compose remains available for arbitrary file storage if needed; it is not used for a default database file.
 
 ---
 
-## 6. Rollback instructions (target: minutes)
+## 6. Rollback via SQLite (obsolete)
 
-**Precondition:** Last known good `aiemployee.db` available in `api-data` (or restore file into `/app/data`).
-
-1. Create or edit **`docker-compose.override.yml`** (gitignored):
-
-   ```yaml
-   services:
-     api:
-       environment:
-         - Database__Provider=Sqlite
-         - ConnectionStrings__DefaultConnection=Data Source=/app/data/aiemployee.db
-   ```
-
-2. **Redeploy:**
-
-   ```bash
-   docker compose up -d api
-   ```
-
-3. **Validate:** `docker compose logs api` shows SQLite provider for `AiEmployeeDbContext`; run admin smoke tests.
-
-4. **Forward path:** Remove the override (or set `Database__Provider` back to `Npgsql` and Postgres connection string), then `docker compose up -d api` again.
-
-**Typical time:** compose recreate + API startup (order of **1–3 minutes**), excluding time to obtain a good SQLite file if missing.
+**No longer supported** as of Phase 7. Restore from **PostgreSQL backups** or redeploy a previous container image if required.
 
 ---
 
@@ -169,7 +133,7 @@ X-Admin-Key: <your Admin__ApiKey>
 
 | Issue | Mitigation |
 |--------|------------|
-| API crashes with “`host` is not supported” on SQLite builder | `Database__Provider` and connection string **misaligned** — ensure both point to the same engine (see §3). |
+| API fails to connect to Postgres | Verify **`ConnectionStrings__DefaultConnection`** (host, port, credentials) and that the Postgres service is healthy. |
 | Stale image after compose changes | `docker compose build api --no-cache` then `up -d`. |
 | Kerberos / `libgssapi` noise in logs | Usually benign if DB connectivity succeeds; see Phase 4 runbook troubleshooting. |
 | Telegram webhooks fail after cutover | Re-check `App__PublicBaseUrl` and **Sync Webhook** for integrations; unrelated to DB engine but often validated in the same window. |
@@ -187,10 +151,8 @@ X-Admin-Key: <your Admin__ApiKey>
 ## 9. Phase 5 completion checklist
 
 - [ ] Postgres **healthy**; `__EFMigrationsHistory_Postgres` present.  
-- [ ] API defaults to **`Npgsql`** in Compose (or explicit prod env).  
 - [ ] `docker compose up -d --build` succeeds; API logs show **Npgsql** to Postgres.  
 - [ ] `GET /admin/behaviors` returns **200** with valid admin key.  
-- [ ] Rollback steps documented and tested on a non-prod environment at least once.  
-- [ ] Production examples show **PostgreSQL only**; SQLite marked deprecated for prod.  
+- [ ] Production examples show **PostgreSQL only** (see Phase 7 doc).  
 
 When satisfied, declare: **PostgreSQL is the primary production database** for deployments following this runbook.

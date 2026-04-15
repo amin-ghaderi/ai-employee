@@ -1,3 +1,4 @@
+using AiEmployee.Application.Dtos.Personas;
 using AiEmployee.Domain.BotConfiguration;
 
 namespace AiEmployee.Application.Interfaces;
@@ -19,5 +20,6 @@ public interface IPersonaRepository
         IReadOnlyList<string> userTypes,
         IReadOnlyList<string> intents,
         IReadOnlyList<string> potentials,
+        PersonaPromptExtensionsUpdate? promptExtensions = null,
         CancellationToken cancellationToken = default);
 }

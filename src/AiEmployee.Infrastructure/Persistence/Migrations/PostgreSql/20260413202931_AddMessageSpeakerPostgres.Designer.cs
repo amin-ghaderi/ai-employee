@@ -11,7 +11,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 namespace AiEmployee.Infrastructure.Persistence.Migrations.PostgreSql
 {
-    [DbContext(typeof(AiEmployeePostgresDbContext))]
+    [DbContext(typeof(AiEmployeeDbContext))]
     [Migration("20260413202931_AddMessageSpeakerPostgres")]
     partial class AddMessageSpeakerPostgres
     {
@@ -697,3 +697,4 @@ namespace AiEmployee.Infrastructure.Persistence.Migrations.PostgreSql
         }
     }
 }
+

@@ -23,11 +23,20 @@ public static class PersonaMapper
                 Intents = persona.ClassificationSchema.Intents.ToList(),
                 Potentials = persona.ClassificationSchema.Potentials.ToList(),
             },
+            PromptExtensions = new PersonaPromptExtensionsDto
+            {
+                ChatOutputSchemaJson = persona.ChatOutputSchemaJson,
+                JudgeInstruction = persona.JudgeInstruction,
+                JudgeSchemaJson = persona.JudgeSchemaJson,
+                LeadInstruction = persona.LeadInstruction,
+                LeadSchemaJson = persona.LeadSchemaJson,
+            },
         };
     }
 
     public static Persona ToDomain(Guid id, CreatePersonaRequest request)
     {
+        var ext = request.PromptExtensions;
         return new Persona(
             id,
             request.DisplayName,
@@ -38,6 +47,11 @@ public static class PersonaMapper
             new ClassificationSchema(
                 (request.ClassificationSchema.UserTypes ?? Array.Empty<string>()).ToList(),
                 (request.ClassificationSchema.Intents ?? Array.Empty<string>()).ToList(),
-                (request.ClassificationSchema.Potentials ?? Array.Empty<string>()).ToList()));
+                (request.ClassificationSchema.Potentials ?? Array.Empty<string>()).ToList()),
+            ext?.ChatOutputSchemaJson,
+            ext?.JudgeInstruction,
+            ext?.JudgeSchemaJson,
+            ext?.LeadInstruction,
+            ext?.LeadSchemaJson);
     }
 }

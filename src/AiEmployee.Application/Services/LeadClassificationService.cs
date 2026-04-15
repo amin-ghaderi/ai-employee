@@ -41,7 +41,7 @@ public sealed class LeadClassificationService
             ? answers[answerKeys[1]]
             : "";
 
-        var leadTemplate = _behaviorPromptMapper.BuildLeadPrompt(persona, behavior);
+        var leadTemplate = _behaviorPromptMapper.BuildLeadPrompt(persona);
 
         var prompt = leadTemplate
             .Replace(PromptTokens.Goal, goal, StringComparison.Ordinal)

@@ -57,6 +57,11 @@ internal sealed class MessageConfiguration : IEntityTypeConfiguration<Message>
             .HasConversion<int>()
             .HasDefaultValue(MessageSpeaker.User)
             .IsRequired();
+
+        builder.Property(x => x.Kind)
+            .HasConversion<int>()
+            .HasDefaultValue(MessageKind.Standard)
+            .IsRequired();
     }
 }
 

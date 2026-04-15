@@ -7,11 +7,11 @@ using Microsoft.Extensions.Configuration;
 
 namespace AiEmployee.IntegrationTests;
 
-public sealed class SlackWebhookFixture : WebApplicationFactory<Program>
+public sealed class SlackWebhookFixture : PostgresWebApplicationFactory
 {
     public const string TestSigningSecret = "test-slack-signing-secret-for-e2e";
 
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    protected override void ConfigureWebHostExtras(IWebHostBuilder builder)
     {
         builder.ConfigureAppConfiguration(
             (_, config) =>

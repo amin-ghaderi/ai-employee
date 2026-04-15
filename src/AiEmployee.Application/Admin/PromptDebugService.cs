@@ -72,11 +72,12 @@ public sealed class PromptDebugService : IPromptDebugService
         response.Channel = string.IsNullOrWhiteSpace(response.Channel)
             ? config.Bot.Channel.ToString()
             : response.Channel;
-        response.PromptSource = BehaviorPromptMapper.GetJudgePromptSource(config.Behavior);
-        response.Schema = BehaviorPromptMapper.ParseSchema(config.Behavior.JudgeSchemaJson);
+        response.PromptSource = BehaviorPromptMapper.GetJudgePromptSource(config.Persona);
+        response.Schema = BehaviorPromptMapper.ParseSchema(
+            BehaviorPromptMapper.GetEffectiveJudgeSchemaJson(config.Persona));
 
         var judgeTemplate = new BehaviorPromptMapper(NullLogger<BehaviorPromptMapper>.Instance)
-            .BuildJudgePrompt(config.Persona, config.Behavior);
+            .BuildJudgePrompt(config.Persona);
         response.HasInputToken = judgeTemplate.Contains(PromptTokens.Input, StringComparison.Ordinal);
         response.HasGoalToken = judgeTemplate.Contains(PromptTokens.Goal, StringComparison.Ordinal);
         response.HasExperienceToken = judgeTemplate.Contains(PromptTokens.Experience, StringComparison.Ordinal);

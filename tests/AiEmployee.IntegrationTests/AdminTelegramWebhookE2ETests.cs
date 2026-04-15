@@ -7,13 +7,13 @@ using Microsoft.AspNetCore.Mvc.Testing;
 namespace AiEmployee.IntegrationTests;
 
 /// <summary>Validates Admin X-Admin-Key gating and stable JSON for webhook admin routes (no live Telegram calls for unknown integration id).</summary>
-public sealed class AdminTelegramWebhookE2ETests : IClassFixture<WebApplicationFactory<Program>>, IDisposable
+public sealed class AdminTelegramWebhookE2ETests : IClassFixture<PostgresWebApplicationFactory>, IDisposable
 {
     private const string ValidAdminKey = "your-secret-key";
 
     private readonly HttpClient _client;
 
-    public AdminTelegramWebhookE2ETests(WebApplicationFactory<Program> factory)
+    public AdminTelegramWebhookE2ETests(PostgresWebApplicationFactory factory)
     {
         _client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {

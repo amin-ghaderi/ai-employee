@@ -50,6 +50,14 @@ internal sealed class BotIntegrationConfiguration : IEntityTypeConfiguration<Bot
         builder.Property(e => e.ExternalId).IsRequired().HasMaxLength(512);
         builder.Property(e => e.IsEnabled).IsRequired();
 
+        builder.Property(x => x.GatewayChannel)
+            .HasMaxLength(64)
+            .IsRequired(false);
+
+        builder.Property(x => x.GatewayExternalId)
+            .HasMaxLength(512)
+            .IsRequired(false);
+
         builder.HasOne<Bot>()
             .WithMany()
             .HasForeignKey(e => e.BotId)
@@ -67,6 +75,12 @@ internal sealed class PersonaConfiguration : IEntityTypeConfiguration<Persona>
         builder.HasKey(e => e.Id);
 
         builder.Property(e => e.DisplayName).IsRequired().HasMaxLength(256);
+
+        builder.Property(e => e.ChatOutputSchemaJson);
+        builder.Property(e => e.JudgeInstruction);
+        builder.Property(e => e.JudgeSchemaJson);
+        builder.Property(e => e.LeadInstruction);
+        builder.Property(e => e.LeadSchemaJson);
 
         builder.OwnsOne(e => e.Prompts, ps =>
         {
@@ -109,10 +123,20 @@ internal sealed class BehaviorConfiguration : IEntityTypeConfiguration<Behavior>
         builder.Property(e => e.EnableChat).IsRequired().HasDefaultValue(true);
         builder.Property(e => e.EnableLead).IsRequired().HasDefaultValue(true);
         builder.Property(e => e.EnableJudge).IsRequired().HasDefaultValue(true);
-        builder.Property(e => e.JudgeInstruction);
-        builder.Property(e => e.JudgeSchemaJson);
-        builder.Property(e => e.LeadInstruction);
-        builder.Property(e => e.LeadSchemaJson);
+
+        builder.Property(x => x.EnableGatewayRouting)
+            .HasDefaultValue(false);
+
+        builder.Property(x => x.GatewayTriggerPhrases)
+            .HasColumnType("text")
+            .IsRequired(false);
+
+        builder.Property(x => x.GatewayMatchType)
+            .HasConversion<int>()
+            .HasDefaultValue(GatewayPhraseMatchType.Contains);
+
+        builder.Property(x => x.GatewayCaseSensitive)
+            .HasDefaultValue(false);
 
         builder.OwnsOne(e => e.LeadFlow, lf =>
         {

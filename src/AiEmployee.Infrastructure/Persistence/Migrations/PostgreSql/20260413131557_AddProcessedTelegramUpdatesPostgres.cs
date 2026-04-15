@@ -33,3 +33,4 @@ namespace AiEmployee.Infrastructure.Persistence.Migrations.PostgreSql
         }
     }
 }
+

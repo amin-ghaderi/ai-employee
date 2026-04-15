@@ -30,6 +30,9 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
     private readonly IActiveTelegramBotContext _activeTelegramBotContext;
     private readonly ITelegramUpdateDeduplicator _telegramUpdateDeduplicator;
     private readonly IMessageEmbeddingPublisher _messageEmbeddingPublisher;
+    private readonly IGatewayPhraseEvaluator _gatewayPhraseEvaluator;
+    private readonly IGatewayDispatcher _gatewayDispatcher;
+    private readonly IGatewayTelemetry _gatewayTelemetry;
     private readonly ILogger<IncomingMessageHandler> _logger;
 
     public IncomingMessageHandler(
@@ -49,6 +52,9 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
         IActiveTelegramBotContext activeTelegramBotContext,
         ITelegramUpdateDeduplicator telegramUpdateDeduplicator,
         IMessageEmbeddingPublisher messageEmbeddingPublisher,
+        IGatewayPhraseEvaluator gatewayPhraseEvaluator,
+        IGatewayDispatcher gatewayDispatcher,
+        IGatewayTelemetry gatewayTelemetry,
         ILogger<IncomingMessageHandler> logger)
     {
         _judgeUseCase = judgeUseCase;
@@ -67,12 +73,15 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
         _activeTelegramBotContext = activeTelegramBotContext;
         _telegramUpdateDeduplicator = telegramUpdateDeduplicator;
         _messageEmbeddingPublisher = messageEmbeddingPublisher;
+        _gatewayPhraseEvaluator = gatewayPhraseEvaluator;
+        _gatewayDispatcher = gatewayDispatcher;
+        _gatewayTelemetry = gatewayTelemetry;
         _logger = logger;
     }
 
     public async Task HandleAsync(IncomingMessage message, CancellationToken cancellationToken = default)
     {
-        var conversationId = message.ExternalChatId;
+        var conversationId = ConversationIdentity.ResolveConversationId(message);
         var messageUserId = message.ExternalUserId;
         var text = message.Text;
         var username = Meta(message.Metadata, IncomingMessageMetadataKeys.Username);
@@ -84,11 +93,14 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
         try
         {
             var integrationId = Meta(message.Metadata, IncomingMessageMetadataKeys.IntegrationExternalId);
+            var telegramScope = Meta(message.Metadata, IncomingMessageMetadataKeys.TelegramBotScopeKey);
             _logger.LogInformation(
-                "IncomingMessageHandler | channel={Channel} userId={UserId} chatId={ChatId} textLength={TextLength} hasIntegrationExternalId={HasIntegration}",
+                "IncomingMessageHandler | channel={Channel} userId={UserId} externalChatId={ExternalChatId} conversationId={ConversationId} telegramScope={TelegramScope} textLength={TextLength} hasIntegrationExternalId={HasIntegration}",
                 message.Channel,
                 messageUserId,
+                message.ExternalChatId,
                 conversationId,
+                telegramScope,
                 text?.Length ?? 0,
                 !string.IsNullOrWhiteSpace(integrationId));
 
@@ -117,6 +129,13 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
             _activeTelegramBotContext.Token = string.IsNullOrWhiteSpace(judgeBotConfig.TelegramBotToken)
                 ? null
                 : judgeBotConfig.TelegramBotToken.Trim();
+
+            _logger.LogInformation(
+                "Loading conversation pipeline | externalChatId={ExternalChatId} conversationId={ConversationId} botId={BotId} integrationExternalIdSet={HasIntegrationToken}",
+                message.ExternalChatId,
+                conversationId,
+                judgeBotConfig.Bot.Id,
+                !string.IsNullOrWhiteSpace(integrationId));
 
             var behavior = judgeBotConfig.Behavior;
             languageProfile = judgeBotConfig.LanguageProfile;
@@ -179,6 +198,11 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
             {
                 _flowTracker.Set("judge");
                 var existing = await _conversationRepository.GetByIdAsync(conversationId);
+                _logger.LogInformation(
+                    "Judge history load | conversationId={ConversationId} externalChatId={ExternalChatId} messageCount={Count}",
+                    conversationId,
+                    message.ExternalChatId,
+                    existing?.Messages.Count ?? 0);
                 if (existing is null || existing.Messages.Count == 0)
                 {
                     await _outgoingClient.SendMessageAsync(
@@ -224,6 +248,49 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
                 return;
             }
 
+            if (behavior.EnableGatewayRouting)
+            {
+                var gatewayMatch = _gatewayPhraseEvaluator.ShouldRouteToGateway(
+                    behavior,
+                    text ?? string.Empty);
+                _gatewayTelemetry.RecordPhraseEvaluation(gatewayMatch);
+                if (gatewayMatch)
+                {
+                    using (_gatewayTelemetry.StartGatewayHandlingActivity(
+                               judgeBotConfig.Bot.Id,
+                               behavior.Id,
+                               message.Channel))
+                    {
+                        _flowTracker.Set("gateway");
+                        _logger.LogInformation(
+                            "Gateway route matched | botId={BotId} behaviorId={BehaviorId} conversationId={ConversationId} textLength={TextLength}",
+                            judgeBotConfig.Bot.Id,
+                            behavior.Id,
+                            conversationId,
+                            (text ?? string.Empty).Length);
+
+                        var gatewayMessage = Message.CreateUserGateway(
+                            conversationId,
+                            messageUserId,
+                            text ?? string.Empty,
+                            username,
+                            firstName,
+                            lastName);
+                        await _conversationRepository.AppendUserMessageAsync(conversationId, gatewayMessage).ConfigureAwait(false);
+                        await TryEnqueueMessageEmbeddingAsync(gatewayMessage.Id).ConfigureAwait(false);
+
+                        await _gatewayDispatcher.DispatchAsync(
+                            judgeBotConfig.Bot.Id,
+                            message.Channel,
+                            integrationId ?? string.Empty,
+                            text ?? string.Empty,
+                            cancellationToken).ConfigureAwait(false);
+                    }
+
+                    return;
+                }
+            }
+
             if (behavior.OnboardingFirstMessageOnly
                 && user.MessagesCount == 1)
             {
@@ -247,6 +314,13 @@ public sealed class IncomingMessageHandler : IIncomingMessageHandler
 
             var conversation = await _conversationRepository.GetByIdAsync(conversationId)
                 ?? throw new InvalidOperationException($"Conversation '{conversationId}' not found after append.");
+
+            _logger.LogInformation(
+                "Retrieved {Count} messages for conversation {ConversationId} (externalChatId={ExternalChatId}, botId={BotId})",
+                conversation.Messages.Count,
+                conversationId,
+                message.ExternalChatId,
+                judgeBotConfig.Bot.Id);
 
             var userMessages = conversation.Messages
                 .Where(m => m.UserId == messageUserId)

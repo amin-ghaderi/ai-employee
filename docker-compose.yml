@@ -19,7 +19,7 @@ services:
     restart: unless-stopped
 
   # ───────────────────────────────────────────────
-  # PostgreSQL — primary database for Compose (Phase 5). SQLite remains a documented rollback path.
+  # PostgreSQL with pgvector — canonical database for Compose (Phase 7+).
   # ───────────────────────────────────────────────
   postgres:
     image: pgvector/pgvector:pg16
@@ -30,6 +30,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     volumes:
       - pg-data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U aiemployee -d aiemployee"]
       interval: 5s
@@ -72,19 +74,12 @@ services:
     ports:
       - "5155:5155"
     volumes:
-      # Not used when Database__Provider=Npgsql. Kept for fast rollback to Sqlite (override env + optional sqlite file).
       - api-data:/app/data
     environment:
       # Loads appsettings.Docker.json so Ai:BaseUrl uses the ai-service hostname (not localhost).
       - ASPNETCORE_ENVIRONMENT=Docker
       - ASPNETCORE_URLS=http://+:5155
-      # Default in Compose: PostgreSQL (hostname "postgres"). Override in .env to revert to SQLite.
-      - Database__Provider=${Database__Provider:-Npgsql}
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=aiemployee;Username=aiemployee;Password=${POSTGRES_PASSWORD:-postgres}
-      # SQLite fallback (example env lines for docker-compose.override.yml):
-      #   - Database__Provider=Sqlite
-      #   - ConnectionStrings__DefaultConnection=Data Source=/app/data/aiemployee.db
-      # If using Sqlite without Postgres, remove postgres from depends_on in the override.
       - Admin__ApiKey=${ADMIN_API_KEY:-your-secret-key}
       # Telegram webhooks: set to your public HTTPS origin (ngrok, tunnel, or prod domain). No trailing slash.
       # Example (uncomment and set): - App__PublicBaseUrl=https://abcd-1234.ngrok-free.app

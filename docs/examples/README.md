@@ -5,5 +5,5 @@ These files are **templates only**. Copy values into your real **`appsettings.*.
 | File | Use case |
 |------|----------|
 | `appsettings.Development.example.json` | Local / ngrok development |
-| `appsettings.Production.example.json` | Production-oriented layout: **PostgreSQL** (`Database:Provider` + Npgsql connection string), HTTPS URL, internal AI URL. **SQLite is not used** in this template (deprecated for production; see Phase 5 cutover doc). |
+| `appsettings.Production.example.json` | Production-oriented layout: **PostgreSQL** connection string (pgvector-capable host), HTTPS URL, internal AI URL. See `docs/PHASE7_POSTGRES_ONLY.md`. |
 | `docker-compose.env.example` | Environment variables for `docker compose` |

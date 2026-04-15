@@ -44,8 +44,9 @@ public sealed class RealFlowTestService
 
         if (request.ResetConversation)
         {
+            var archiveConversationId = ResolveArchiveConversationIdForRequest(request);
             await inMemoryRepo.ReplaceMessagesAsync(
-                request.ExternalChatId,
+                archiveConversationId,
                 Array.Empty<Message>(),
                 cancellationToken);
         }
@@ -142,5 +143,16 @@ public sealed class RealFlowTestService
         }
 
         return meta;
+    }
+
+    /// <summary>Matches <see cref="ConversationIdentity.ResolveConversationId"/> for the synthetic metadata used in real-flow tests.</summary>
+    private static string ResolveArchiveConversationIdForRequest(RealFlowTestRequest request)
+    {
+        if (!BotIntegrationChannelNames.IsTelegramChannel(request.Channel))
+            return request.ExternalChatId;
+
+        var meta = BuildTestMetadata(request, "_", 0);
+        _ = meta.TryGetValue(IncomingMessageMetadataKeys.TelegramBotScopeKey, out var scopeKey);
+        return ConversationIdentity.ResolveTelegramConversationId(scopeKey ?? string.Empty, request.ExternalChatId);
     }
 }

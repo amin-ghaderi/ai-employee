@@ -14,6 +14,7 @@ public static class BehaviorRequestValidator
             request.LeadFlow,
             request.EngagementRules,
             request.AutomationRules);
+        AppendGatewayMatchTypeErrors(errors, request.GatewayMatchType);
         if (errors.Count > 0)
             throw new BehaviorValidationException(errors);
     }
@@ -27,8 +28,15 @@ public static class BehaviorRequestValidator
             request.LeadFlow,
             request.EngagementRules,
             request.AutomationRules);
+        AppendGatewayMatchTypeErrors(errors, request.GatewayMatchType);
         if (errors.Count > 0)
             throw new BehaviorValidationException(errors);
+    }
+
+    private static void AppendGatewayMatchTypeErrors(List<string> errors, int gatewayMatchType)
+    {
+        if (!Enum.IsDefined(typeof(GatewayPhraseMatchType), gatewayMatchType))
+            errors.Add("gatewayMatchType must be 0 (Contains), 1 (Exact), or 2 (Regex).");
     }
 
     private static List<string> CollectErrors(

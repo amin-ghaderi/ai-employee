@@ -351,7 +351,7 @@ export default function TestPage() {
               <option value="">Select Persona (required)</option>
               {personas.length === 0 && (
                 <option value="" disabled>
-                  No personas available
+                  No prompt configurations available
                 </option>
               )}
               {personas.map((p) => (

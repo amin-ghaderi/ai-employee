@@ -23,16 +23,16 @@ public static class BehaviorMapper
             EnableChat = behavior.EnableChat,
             EnableLead = behavior.EnableLead,
             EnableJudge = behavior.EnableJudge,
-            JudgeInstruction = behavior.JudgeInstruction,
-            JudgeSchemaJson = behavior.JudgeSchemaJson,
-            LeadInstruction = behavior.LeadInstruction,
-            LeadSchemaJson = behavior.LeadSchemaJson,
+            EnableGatewayRouting = behavior.EnableGatewayRouting,
+            GatewayTriggerPhrases = behavior.GatewayTriggerPhrases,
+            GatewayMatchType = (int)behavior.GatewayMatchType,
+            GatewayCaseSensitive = behavior.GatewayCaseSensitive,
         };
     }
 
     public static Behavior ToDomain(Guid id, CreateBehaviorRequest request)
     {
-        var behavior = new Behavior(
+        return new Behavior(
             id,
             request.JudgeContextMessageCount,
             request.JudgePerMessageMaxChars,
@@ -46,17 +46,16 @@ public static class BehaviorMapper
             request.HotLeadTag,
             request.EnableChat,
             request.EnableLead,
-            request.EnableJudge);
-        behavior.JudgeInstruction = request.JudgeInstruction;
-        behavior.JudgeSchemaJson = request.JudgeSchemaJson;
-        behavior.LeadInstruction = request.LeadInstruction;
-        behavior.LeadSchemaJson = request.LeadSchemaJson;
-        return behavior;
+            request.EnableJudge,
+            request.EnableGatewayRouting,
+            request.GatewayTriggerPhrases,
+            ToGatewayMatchType(request.GatewayMatchType),
+            request.GatewayCaseSensitive);
     }
 
     public static Behavior ToDomain(Guid id, UpdateBehaviorRequest request)
     {
-        var behavior = new Behavior(
+        return new Behavior(
             id,
             request.JudgeContextMessageCount,
             request.JudgePerMessageMaxChars,
@@ -70,13 +69,17 @@ public static class BehaviorMapper
             request.HotLeadTag,
             request.EnableChat,
             request.EnableLead,
-            request.EnableJudge);
-        behavior.JudgeInstruction = request.JudgeInstruction;
-        behavior.JudgeSchemaJson = request.JudgeSchemaJson;
-        behavior.LeadInstruction = request.LeadInstruction;
-        behavior.LeadSchemaJson = request.LeadSchemaJson;
-        return behavior;
+            request.EnableJudge,
+            request.EnableGatewayRouting,
+            request.GatewayTriggerPhrases,
+            ToGatewayMatchType(request.GatewayMatchType),
+            request.GatewayCaseSensitive);
     }
+
+    private static GatewayPhraseMatchType ToGatewayMatchType(int value) =>
+        Enum.IsDefined(typeof(GatewayPhraseMatchType), value)
+            ? (GatewayPhraseMatchType)value
+            : GatewayPhraseMatchType.Contains;
 
     private static LeadFlowDto ToLeadFlowDto(LeadFlow leadFlow) =>
         new()

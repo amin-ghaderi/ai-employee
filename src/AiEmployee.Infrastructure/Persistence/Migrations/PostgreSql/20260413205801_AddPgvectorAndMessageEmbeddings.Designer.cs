@@ -12,7 +12,7 @@ using Pgvector;
 
 namespace AiEmployee.Infrastructure.Persistence.Migrations.PostgreSql
 {
-    [DbContext(typeof(AiEmployeePostgresDbContext))]
+    [DbContext(typeof(AiEmployeeDbContext))]
     [Migration("20260413205801_AddPgvectorAndMessageEmbeddings")]
     partial class AddPgvectorAndMessageEmbeddings
     {
@@ -743,3 +743,4 @@ namespace AiEmployee.Infrastructure.Persistence.Migrations.PostgreSql
         }
     }
 }
+

@@ -11,7 +11,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 namespace AiEmployee.Infrastructure.Persistence.Migrations.PostgreSql
 {
-    [DbContext(typeof(AiEmployeePostgresDbContext))]
+    [DbContext(typeof(AiEmployeeDbContext))]
     [Migration("20260413093932_InitialPostgresBaseline")]
     partial class InitialPostgresBaseline
     {
@@ -677,3 +677,4 @@ namespace AiEmployee.Infrastructure.Persistence.Migrations.PostgreSql
         }
     }
 }
+

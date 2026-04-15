@@ -11,7 +11,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 namespace AiEmployee.Infrastructure.Persistence.Migrations.PostgreSql
 {
-    [DbContext(typeof(AiEmployeePostgresDbContext))]
+    [DbContext(typeof(AiEmployeeDbContext))]
     [Migration("20260413131557_AddProcessedTelegramUpdatesPostgres")]
     partial class AddProcessedTelegramUpdatesPostgres
     {
@@ -694,3 +694,4 @@ namespace AiEmployee.Infrastructure.Persistence.Migrations.PostgreSql
         }
     }
 }
+

@@ -37,7 +37,9 @@ public sealed class BotIntegrationAdminService : IBotIntegrationAdminService
             request.BotId,
             channel,
             externalId,
-            request.IsEnabled);
+            request.IsEnabled,
+            NormalizeOptional(request.GatewayChannel),
+            NormalizeOptional(request.GatewayExternalId));
 
         await _integrationRepository.AddAsync(integration, cancellationToken).ConfigureAwait(false);
         return BotIntegrationMapper.ToDto(integration);
@@ -97,7 +99,21 @@ public sealed class BotIntegrationAdminService : IBotIntegrationAdminService
 
         var isEnabled = request.IsEnabled ?? current.IsEnabled;
 
-        var updated = new BotIntegration(current.Id, botId, channel, externalId, isEnabled);
+        var gatewayChannel = request.GatewayChannel is not null
+            ? NormalizeOptional(request.GatewayChannel)
+            : current.GatewayChannel;
+        var gatewayExternalId = request.GatewayExternalId is not null
+            ? NormalizeOptional(request.GatewayExternalId)
+            : current.GatewayExternalId;
+
+        var updated = new BotIntegration(
+            current.Id,
+            botId,
+            channel,
+            externalId,
+            isEnabled,
+            gatewayChannel,
+            gatewayExternalId);
         await _integrationRepository.UpdateAsync(updated, cancellationToken).ConfigureAwait(false);
 
         var reloaded = await _integrationRepository.GetByIdAsync(id, cancellationToken).ConfigureAwait(false)
@@ -112,7 +128,14 @@ public sealed class BotIntegrationAdminService : IBotIntegrationAdminService
             throw new KeyNotFoundException($"No bot integration was found for id '{id}'.");
 
         var channel = BotIntegrationChannelNames.NormalizeChannelValue(current.Channel);
-        var updated = new BotIntegration(current.Id, current.BotId, channel, current.ExternalId, isEnabled: true);
+        var updated = new BotIntegration(
+            current.Id,
+            current.BotId,
+            channel,
+            current.ExternalId,
+            isEnabled: true,
+            current.GatewayChannel,
+            current.GatewayExternalId);
         await _integrationRepository.UpdateAsync(updated, cancellationToken).ConfigureAwait(false);
 
         var reloaded = await _integrationRepository.GetByIdAsync(id, cancellationToken).ConfigureAwait(false)
@@ -127,13 +150,23 @@ public sealed class BotIntegrationAdminService : IBotIntegrationAdminService
             throw new KeyNotFoundException($"No bot integration was found for id '{id}'.");
 
         var channel = BotIntegrationChannelNames.NormalizeChannelValue(current.Channel);
-        var updated = new BotIntegration(current.Id, current.BotId, channel, current.ExternalId, isEnabled: false);
+        var updated = new BotIntegration(
+            current.Id,
+            current.BotId,
+            channel,
+            current.ExternalId,
+            isEnabled: false,
+            current.GatewayChannel,
+            current.GatewayExternalId);
         await _integrationRepository.UpdateAsync(updated, cancellationToken).ConfigureAwait(false);
 
         var reloaded = await _integrationRepository.GetByIdAsync(id, cancellationToken).ConfigureAwait(false)
             ?? throw new KeyNotFoundException($"No bot integration was found for id '{id}'.");
         return BotIntegrationMapper.ToDto(reloaded);
     }
+
+    private static string? NormalizeOptional(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private async Task EnsureBotAllowedAsync(Guid botId, CancellationToken cancellationToken)
     {

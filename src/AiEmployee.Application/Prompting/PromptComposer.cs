@@ -10,14 +10,14 @@ public sealed class PromptComposer
         ArgumentNullException.ThrowIfNull(persona);
 
         var input = userInput ?? string.Empty;
-        var system = persona.Prompts.System;
+        var system = BehaviorPromptMapper.BuildChatSystemContent(persona);
 
         if (string.IsNullOrWhiteSpace(system))
             return input;
 
         return
             $"[SYSTEM]{Environment.NewLine}"
-            + $"{system.Trim()}{Environment.NewLine}"
+            + $"{system}{Environment.NewLine}"
             + Environment.NewLine
             + $"[USER]{Environment.NewLine}"
             + $"User: {input}";
@@ -35,7 +35,7 @@ public sealed class PromptComposer
         ArgumentNullException.ThrowIfNull(historyLines);
 
         var input = latestUserMessage ?? string.Empty;
-        var system = persona.Prompts.System;
+        var system = BehaviorPromptMapper.BuildChatSystemContent(persona);
 
         if (string.IsNullOrWhiteSpace(system))
         {
@@ -43,7 +43,7 @@ public sealed class PromptComposer
         }
 
         var sb = new StringBuilder();
-        sb.Append("[SYSTEM]").AppendLine().AppendLine(system.Trim()).AppendLine();
+        sb.Append("[SYSTEM]").AppendLine().AppendLine(system).AppendLine();
 
         AppendLiveNewsSection(sb, liveNewsLines);
 

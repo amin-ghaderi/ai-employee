@@ -14,12 +14,12 @@ namespace AiEmployee.Infrastructure.AI;
 
 public sealed class PgVectorStore : IVectorStore
 {
-    private readonly AiEmployeePostgresDbContext _db;
+    private readonly AiEmployeeDbContext _db;
     private readonly IOptions<RagOptions> _ragOptions;
     private readonly ILogger<PgVectorStore> _logger;
 
     public PgVectorStore(
-        AiEmployeePostgresDbContext db,
+        AiEmployeeDbContext db,
         IOptions<RagOptions> ragOptions,
         ILogger<PgVectorStore> logger)
     {

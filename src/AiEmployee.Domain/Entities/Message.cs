@@ -14,6 +14,7 @@ public sealed class Message
     public string Text { get; private set; } = string.Empty;
     public DateTime CreatedAt { get; private set; }
     public MessageSpeaker Speaker { get; private set; } = MessageSpeaker.User;
+    public MessageKind Kind { get; private set; } = MessageKind.Standard;
 
     private Message()
     {
@@ -39,6 +40,7 @@ public sealed class Message
         LastName = lastName;
         CreatedAt = DateTime.UtcNow;
         Speaker = MessageSpeaker.User;
+        Kind = MessageKind.Standard;
     }
 
     /// <summary>
@@ -65,6 +67,36 @@ public sealed class Message
             LastName = null,
             CreatedAt = DateTime.UtcNow,
             Speaker = MessageSpeaker.Assistant,
+            Kind = MessageKind.Standard,
+        };
+    }
+
+    /// <summary>
+    /// User message persisted when the inbound text is forwarded to a configured gateway (omnichannel handoff).
+    /// </summary>
+    public static Message CreateUserGateway(
+        string conversationId,
+        string userId,
+        string text,
+        string? username = null,
+        string? firstName = null,
+        string? lastName = null)
+    {
+        if (string.IsNullOrWhiteSpace(conversationId))
+            throw new ArgumentException("ConversationId is required.", nameof(conversationId));
+
+        return new Message
+        {
+            Id = Guid.NewGuid(),
+            ConversationId = conversationId,
+            UserId = userId,
+            Text = text ?? string.Empty,
+            Username = username,
+            FirstName = firstName,
+            LastName = lastName,
+            CreatedAt = DateTime.UtcNow,
+            Speaker = MessageSpeaker.User,
+            Kind = MessageKind.Gateway,
         };
     }
 }

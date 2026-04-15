@@ -3349,6 +3349,456 @@ Key implementations include:
 Continue by implementing **Phase 5: Optimization and Observability**, focusing on token budgeting, telemetry, performance monitoring, and semantic caching while maintaining Clean Architecture principles and production readiness.
 
 ---
+2026-04-14
+
+Certainly. Below is a structured and professional technical summary based on the completed work.
+
+---
+
+# **AI Employee Platform – Technical Summary**
+
+## **1. Project Context**
+
+* **Brief Explanation of the Project/Module**
+  The AI Employee Platform is a modular, containerized AI system designed to power intelligent conversational agents across multiple channels such as Telegram. It integrates Large Language Models (LLMs), Retrieval-Augmented Generation (RAG), live data retrieval, and configurable personas through an administrative console.
+
+* **Main Goal of This Part**
+  To implement and refine real-time information retrieval capabilities, including Live News integration and the transition toward full web search-based RAG, while enhancing prompt engineering and ensuring system stability after database resets.
+
+---
+
+## **2. What Was Implemented**
+
+* Implemented and configured a **Live News retrieval mechanism** using Google News RSS.
+* Designed a prompt structure that supports real-time data through the `[LIVE NEWS]` section.
+* Established a **context priority hierarchy**:
+
+  1. `[SYSTEM]`
+  2. `[LIVE NEWS]`
+  3. `[RETRIEVED CONTEXT]`
+  4. `[RECENT CONVERSATION HISTORY]`
+  5. `[USER]`
+* Enhanced system prompts to:
+
+  * Utilize live news data when available.
+  * Avoid hallucinations and fabricated information.
+  * Respect Telegram formatting and multilingual requirements.
+* Verified and debugged Sliding Window memory to ensure conversation continuity.
+* Restored system functionality after database reset and validated message persistence.
+* Confirmed Ollama connectivity and resolved authentication issues.
+* Defined a roadmap to replace RSS-based news retrieval with full internet search.
+* Designed a specialized persona acting as the official digital secretary of the Iranian Monarchy Party, with referral to its official website.
+* Established guidelines for RAG, live data usage, and response formatting.
+
+---
+
+## **3. Technical Details**
+
+### **Technologies and Tools**
+
+* **Backend:** ASP.NET Core (.NET)
+* **AI Service:** Python (FastAPI)
+* **LLM Runtime:** Ollama
+* **Model:** `gpt-oss:20b-cloud`
+* **Database:** PostgreSQL with pgvector
+* **Containerization:** Docker & Docker Compose
+* **Admin Interface:** Vite-based Admin UI
+* **Messaging Channel:** Telegram Bot API
+* **Tunneling:** Ngrok
+* **News Source:** Google News RSS
+* **Configuration:** appsettings.json and environment variables
+
+### **Architectural Patterns**
+
+* Clean Architecture
+* Domain-Driven Design (DDD)
+* Retrieval-Augmented Generation (RAG)
+* Sliding Window Context Management
+* Dependency Injection
+* Microservices Architecture
+* Configuration-Driven Design
+* Prompt Engineering and Template-Based AI Control
+
+### **Key Architectural Decisions**
+
+* Separation of concerns between API and AI services.
+* Storage of embeddings in PostgreSQL using pgvector.
+* Injection of real-time data into prompts via structured sections.
+* Use of Docker volumes for persistence and portability.
+* Configurable personas, behaviors, and prompt templates.
+
+---
+
+## **4. Current State**
+
+### **Working Components**
+
+* ✅ Telegram bot integration
+* ✅ Ollama connectivity and inference
+* ✅ Prompt templates and persona configuration
+* ✅ Message persistence and conversation tracking
+* ✅ Sliding Window memory
+* ✅ Live News RSS retrieval
+* ✅ Google News integration
+* ✅ Dockerized infrastructure
+* ✅ Admin UI configuration
+* ✅ Migration and seeding mechanisms
+
+### **Partially Complete**
+
+* ⚠️ Web Search RAG replacing RSS-based Live News
+* ⚠️ Automated ingestion and embedding pipelines
+* ⚠️ Comprehensive test restoration after database reset
+* ⚠️ Expanded real-time retrieval beyond news
+
+---
+
+## **5. Pending Tasks / Next Steps**
+
+1. Replace RSS-based Live News with a full **Web Search RAG** solution.
+2. Integrate a search provider such as Tavily, SerpAPI, Brave, or Bing.
+3. Implement a `[WEB SEARCH]` prompt section.
+4. Enable RAG in production configuration.
+5. Rebuild and populate embeddings.
+6. Add automated ingestion pipelines for external data.
+7. Restore and stabilize failing tests.
+8. Implement automated database seeding.
+9. Add monitoring, logging, and observability.
+10. Secure API keys using environment variables.
+11. Enhance error handling and fallback logic.
+12. Document deployment and configuration procedures.
+
+---
+
+## **6. Important Notes**
+
+* Embeddings and RAG data are stored in PostgreSQL and are lost if Docker volumes are removed.
+* Running `docker compose down -v` deletes all persistent data.
+* Sliding Window memory depends on stored messages.
+* Live News relies on keyword triggers defined in configuration.
+* Ollama must be properly authenticated and reachable within Docker.
+* Tests may fail if seed data is missing.
+* Real-time data requires reliable external sources and proper configuration.
+* Prompt templates must include retrieval sections to ensure correct AI behavior.
+* Ngrok is required for Telegram webhook exposure in development environments.
+* System behavior is configuration-driven and environment-sensitive.
+
+---
+
+## **7. How to Continue in Next Chat**
+
+Continue by implementing a Web Search–based RAG module to replace the RSS Live News system, integrating a search API, injecting results into a `[WEB SEARCH]` prompt section, enabling embeddings, and validating end-to-end functionality across Docker, Ollama, and the Telegram bot.
+
+---
+2026-04-15
+
+Certainly. Below is a clear, structured, and professional technical summary suitable for reuse in future engineering discussions.
+
+---
+
+# **AI Employee Platform — Technical Summary**
+
+## **1. Project Context**
+
+**Brief Explanation**
+The AI Employee Platform is a production-grade, multi-channel conversational AI system designed to configure, orchestrate, and deploy intelligent agents. It supports advanced prompt management, structured AI responses, and Retrieval-Augmented Generation (RAG) using PostgreSQL and pgvector.
+
+**Main Goal of This Part**
+The objective of this initiative was to centralize prompt configuration within the `Persona` aggregate, enforce structured AI outputs via JSON schemas, enhance observability with OpenTelemetry, and standardize the platform on PostgreSQL as the sole data plane.
+
+---
+
+## **2. What Was Implemented**
+
+**Detailed Description**
+
+### Phase 1 – Domain & Data Model
+
+* Introduced prompt extension fields in the `Persona` aggregate:
+
+  * `ChatOutputSchemaJson`
+  * `JudgeInstruction`, `JudgeSchemaJson`
+  * `LeadInstruction`, `LeadSchemaJson`
+* Added EF Core mappings and PostgreSQL migrations with data backfill from `Behaviors` to `Personas`.
+* Ensured backward compatibility and safe normalization of optional JSON fields.
+
+### Phase 2 – Application Layer
+
+* Implemented DTOs and validators for prompt extensions.
+* Introduced dual-read logic in `BehaviorPromptMapper`:
+
+  * Priority: Persona Extensions → Behavior → Persona Templates.
+* Updated repositories, services, and prompt composition logic.
+
+### Phase 3 – Admin UI Refactor
+
+* Renamed **Personas** to **Prompt Configuration**.
+* Added Chat Instruction and Chat Output Schema fields.
+* Migrated Judge and Lead configurations to Persona.
+* Maintained backward compatibility with existing Behavior data.
+
+### Phase 4 – Prompt Versioning
+
+* Extended `PromptType` with:
+
+  * `ChatOutputSchema`, `JudgeInstruction`, `JudgeSchema`, `LeadInstruction`, `LeadSchema`.
+* Implemented `PromptVersionRecorder` to track changes.
+* Added integration tests validating version history.
+
+### Phase 5 – Behavior Cleanup
+
+* Removed Judge and Lead prompt fields from the `Behavior` entity and database.
+* Migrated remaining data to `Persona`.
+* Simplified the prompt pipeline and eliminated dual-read logic.
+* Updated migrations, services, DTOs, and Admin UI.
+
+### Phase 6 – Chat Output Schema Enforcement & Telemetry
+
+* Enforced structured responses using JSON Schema validation.
+* Implemented:
+
+  * `ChatCompletionRequestContext`
+  * `IChatOutputSchemaValidator`
+  * `JsonSchemaChatOutputValidator`
+  * `ChatAssistantJsonPayloadExtractor`
+  * `ChatStructuredResponseFormatter`
+* Added OpenTelemetry tracing, metrics, and structured logging.
+
+### Phase 7 – PostgreSQL-Only Architecture
+
+* Removed SQLite entirely from the application and deployment pipeline.
+* Standardized on PostgreSQL with pgvector.
+* Updated Docker, configuration, documentation, and test infrastructure.
+* Implemented Testcontainers for realistic PostgreSQL integration testing.
+
+---
+
+## **3. Technical Details**
+
+### Technologies and Frameworks
+
+* **Backend:** .NET 8, ASP.NET Core
+* **Frontend:** React (Admin Console)
+* **Database:** PostgreSQL
+* **Vector Storage:** pgvector
+* **ORM:** Entity Framework Core
+* **AI Integration:** OpenAI-compatible AI Client
+* **Schema Validation:** JsonSchema.Net
+* **Observability:** OpenTelemetry
+* **Testing:** xUnit, Testcontainers
+* **Containerization:** Docker, Docker Compose
+
+### Architectural Patterns and Decisions
+
+* Clean Architecture
+* Domain-Driven Design (DDD)
+* Repository Pattern
+* Value Objects and Aggregate Roots
+* PostgreSQL-First Strategy
+* Structured AI Output Enforcement
+* Prompt Versioning and Auditability
+* OpenTelemetry-Based Observability
+* Configuration-Driven AI Behavior
+
+### Constraints
+
+* PostgreSQL is the canonical and only supported database.
+* AI logic resides in Application/Infrastructure layers; Domain remains pure.
+* Backward compatibility preserved during phased migrations.
+
+---
+
+## **4. Current State**
+
+### What Is Working Now
+
+* Centralized prompt configuration under `Persona`.
+* Structured chat output enforced via JSON Schema.
+* Prompt versioning and audit history implemented.
+* PostgreSQL with pgvector fully operational.
+* OpenTelemetry tracing and metrics available.
+* Admin Console aligned with backend architecture.
+* Telegram and other channels functioning correctly.
+* Integration tests using Testcontainers.
+* All builds and tests pass successfully.
+
+### Partially Complete
+
+* None. All planned phases (1–7) have been completed and verified.
+
+---
+
+## **5. Pending Tasks / Next Steps**
+
+* Implement advanced AI capabilities:
+
+  * Model routing and cost optimization.
+  * Streaming responses.
+  * Adaptive prompt tuning.
+* Introduce caching strategies (e.g., Redis).
+* Enhance RAG with hybrid search and reranking.
+* Build dashboards for observability and cost monitoring.
+* Conduct performance and load testing.
+* Add automated AI evaluation pipelines.
+* Introduce rate limiting and resilience policies.
+* Optimize token usage and response latency.
+
+---
+
+## **6. Important Notes**
+
+* PostgreSQL with pgvector is the sole supported database.
+* SQLite has been fully deprecated and removed.
+* Chat output schema enforcement is configurable via:
+
+  ```json
+  {
+    "Ai": {
+      "EnforceChatOutputSchema": true
+    }
+  }
+  ```
+* Omitting `promptExtensions` in updates preserves existing data.
+* Destructive migrations in Phase 5 cannot restore removed Behavior data.
+* OpenTelemetry instrumentation is activated only when an OTLP endpoint is configured.
+* Integration tests require Docker for Testcontainers.
+
+---
+
+## **7. How to Continue in Next Chat**
+
+To continue development, use the following instruction:
+
+**"Act as a senior software architect and continue enhancing the AI Employee Platform. Build upon the existing PostgreSQL-only architecture, structured prompt configuration, and AI schema enforcement. Focus on scalability, performance optimization, and advanced AI capabilities such as caching, model routing, and enhanced RAG."**
+
+---
+
+1. Project Context
+
+Brief Explanation
+This project is an AI-driven, production-grade chatbot platform designed to support omnichannel communication. It enables configurable bot behaviors, integrations with external messaging platforms, and intelligent automation through a Clean Architecture-based backend and a React-based admin console.
+
+Main Goal of This Part
+The primary objective was to implement Gateway-based Omnichannel Routing, allowing specific user messages to be automatically forwarded to designated external channels. This included backend enhancements, administrative configuration, and production-readiness improvements.
+
+2. What Was Implemented
+
+Gateway-Based Omnichannel Routing
+
+Introduced a mechanism to forward messages to external gateways based on configurable trigger phrases.
+Enabled routing logic driven by bot behavior settings.
+
+Phase 1 – Database & Domain Updates
+
+Extended BotIntegration with:
+GatewayChannel
+GatewayExternalId
+Extended Behavior with gateway routing configuration:
+EnableGatewayRouting
+GatewayTriggerPhrases
+GatewayMatchType
+GatewayCaseSensitive
+Introduced enums:
+GatewayPhraseMatchType
+MessageKind
+Added MessageKind.Gateway and Message.CreateUserGateway for auditing forwarded messages.
+Implemented EF Core migrations and configurations.
+
+Phase 2 – Application Layer
+
+Implemented routing logic:
+IGatewayPhraseEvaluator and GatewayPhraseEvaluator
+IGatewayDispatcher and GatewayDispatcher
+Extended IBotIntegrationRepository to resolve integrations by channel and external ID.
+Integrated routing into IncomingMessageHandler after Judge logic and before onboarding.
+Prevented duplicate responses by short-circuiting the pipeline.
+Registered services via dependency injection.
+
+Phase 3 – Admin UI
+
+Updated the React Admin Panel:
+Added Gateway configuration fields in Integrations.
+Added a new “Gateway Routing (Chat)” section in Behaviors.
+Implemented validation, editing, and persistence through existing APIs.
+Ensured compatibility with backend DTOs.
+
+Phase 4 – Observability & Hardening
+
+Added telemetry, monitoring, and resilience features:
+OpenTelemetry integration for metrics and tracing.
+Structured logging across gateway workflows.
+Polly-based resilience policies.
+Feature flags for global gateway control.
+Health checks for system readiness.
+Introduced configuration via GatewayOptions.
+Added unit tests and operational documentation.
+3. Technical Details
+
+Technologies and Frameworks
+
+Backend: .NET, ASP.NET Core, EF Core, PostgreSQL
+Frontend: React (Admin UI)
+Observability: OpenTelemetry, OTLP Exporters
+Resilience: Polly
+Feature Flags: Microsoft.FeatureManagement
+Containerization: Docker
+Testing: xUnit and integration testing frameworks
+
+Architectural Patterns
+
+Clean Architecture (Domain, Application, Infrastructure, API)
+Repository Pattern
+Dependency Injection
+Decorator Pattern (Feature Flag Control)
+Strategy Pattern (Phrase Matching)
+Factory Methods (Message Creation)
+Configuration via Options Pattern
+
+Key Constraints
+
+Domain layer remains free of infrastructure dependencies.
+Backward compatibility maintained throughout all changes.
+No AI logic placed in the Domain layer.
+Existing indexes and entities were not modified unnecessarily.
+4. Current State
+
+What Is Working
+
+Gateway-based message routing is fully operational.
+Admin UI allows configuration of integrations and behaviors.
+Messages are forwarded and logged with MessageKind.Gateway.
+Observability features provide logging, metrics, and tracing.
+Health checks and feature flags are in place.
+Build and test suites pass successfully.
+
+Partially Complete
+
+Optional outbound channel senders (e.g., WhatsApp) may require implementation if new gateway channels are introduced.
+Advanced dashboards and alerting configurations depend on deployment environment.
+5. Pending Tasks / Next Steps
+Add additional IChannelMessageSender implementations for new providers (e.g., WhatsApp).
+Configure production dashboards and alerts using OpenTelemetry.
+Finalize operational runbooks and documentation.
+Implement advanced audit logging if regulatory compliance requires it.
+Perform end-to-end validation in staging and production environments.
+Prepare for Phase 5 (Scalability & Performance Optimization) when traffic increases.
+6. Important Notes
+Phase 5 is not currently required; the system scales adequately for moderate workloads.
+OpenTelemetry export requires a configured OTLP endpoint.
+Regex-based routing includes timeout safeguards to prevent ReDoS attacks.
+Sensitive user data is not logged to prevent PII exposure.
+Gateway dispatch depends on registered channel senders; unsupported channels will log warnings.
+Feature flags allow immediate global disabling of the gateway functionality.
+The unique index on (Channel, ExternalId) in BotIntegrations remains unchanged.
+Retry policies are conservative to avoid duplicate message delivery.
+7. How to Continue in Next Chat
+
+To continue development, provide this summary and specify the next objective. For example:
+
+Continue with Phase 5: Scalability & Performance Optimization by designing asynchronous gateway dispatch using a message queue (e.g., RabbitMQ or Azure Service Bus) while preserving Clean Architecture principles.
+
+This enables another AI or developer to proceed without additional context.
+
 
 
 

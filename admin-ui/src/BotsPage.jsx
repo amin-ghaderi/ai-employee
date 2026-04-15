@@ -76,7 +76,7 @@ export default function BotsPage() {
             e.response?.data?.title ||
               e.response?.data?.message ||
               e.message ||
-              'Failed to load personas or behaviors'
+              'Failed to load prompt configurations or behaviors'
           );
         }
       }
@@ -287,7 +287,7 @@ export default function BotsPage() {
               <th>Name</th>
               <th>Channel</th>
               <th>Enabled</th>
-              <th>Persona</th>
+              <th>Prompt configuration</th>
               <th>Behavior</th>
               <th>Assign</th>
               <th>Actions</th>

@@ -191,7 +191,11 @@ Do not include any extra text.
             hotLeadTag: "hot_lead",
             enableChat: true,
             enableLead: true,
-            enableJudge: true);
+            enableJudge: true,
+            enableGatewayRouting: false,
+            gatewayTriggerPhrases: null,
+            gatewayMatchType: GatewayPhraseMatchType.Contains,
+            gatewayCaseSensitive: false);
 
     public static LanguageProfile CreateLanguageProfile() =>
         new(

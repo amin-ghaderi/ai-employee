@@ -15,8 +15,9 @@ public sealed class UpdateBehaviorRequest
     public bool EnableChat { get; set; }
     public bool EnableLead { get; set; }
     public bool EnableJudge { get; set; }
-    public string? JudgeInstruction { get; set; }
-    public string? JudgeSchemaJson { get; set; }
-    public string? LeadInstruction { get; set; }
-    public string? LeadSchemaJson { get; set; }
+
+    public bool EnableGatewayRouting { get; set; }
+    public string? GatewayTriggerPhrases { get; set; }
+    public int GatewayMatchType { get; set; }
+    public bool GatewayCaseSensitive { get; set; }
 }

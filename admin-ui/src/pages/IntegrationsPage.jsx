@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { BotsApi } from '../api/services/bots.js';
 import { IntegrationsApi } from '../api/services/integrations.js';
+import {
+  CHANNEL_OPTIONS,
+  channelOptionsWithCurrent,
+} from '../constants/channels.js';
 
 function botNameForId(bots, botId) {
   const id = String(botId);
@@ -90,6 +94,8 @@ export default function IntegrationsPage() {
   const [botId, setBotId] = useState('');
   const [channel, setChannel] = useState('');
   const [externalId, setExternalId] = useState('');
+  const [createGatewayChannel, setCreateGatewayChannel] = useState('');
+  const [createGatewayExternalId, setCreateGatewayExternalId] = useState('');
   const [validationError, setValidationError] = useState('');
   const [createError, setCreateError] = useState('');
   const [createBusy, setCreateBusy] = useState(false);
@@ -103,6 +109,25 @@ export default function IntegrationsPage() {
   );
   const [webhookActionIds, setWebhookActionIds] = useState(() => new Set());
   const [webhookActionErrors, setWebhookActionErrors] = useState({});
+
+  /** @type {Record<string, { channel: string, externalId: string }>} */
+  const [gatewayDrafts, setGatewayDrafts] = useState({});
+  const [gatewaySaveBusyIds, setGatewaySaveBusyIds] = useState(() => new Set());
+  const [gatewaySaveErrors, setGatewaySaveErrors] = useState({});
+
+  useEffect(() => {
+    if (!Array.isArray(integrations)) return;
+    const next = {};
+    for (const row of integrations) {
+      next[String(row.id)] = {
+        channel:
+          row.gatewayChannel != null ? String(row.gatewayChannel) : '',
+        externalId:
+          row.gatewayExternalId != null ? String(row.gatewayExternalId) : '',
+      };
+    }
+    setGatewayDrafts(next);
+  }, [integrations]);
 
   const loadData = useCallback(async () => {
     setError('');
@@ -251,18 +276,33 @@ export default function IntegrationsPage() {
       setValidationError('externalId is required.');
       return;
     }
+    const gwCh = createGatewayChannel.trim().toLowerCase();
+    const gwExt = createGatewayExternalId.trim();
+    if ((gwCh && !gwExt) || (!gwCh && gwExt)) {
+      setValidationError(
+        'Gateway Channel and Gateway External ID must be provided together.'
+      );
+      return;
+    }
     setValidationError('');
     setCreateError('');
     setCreateBusy(true);
     try {
-      await IntegrationsApi.create({
+      const body = {
         botId: bid,
-        channel: ch,
+        channel: ch.toLowerCase(),
         externalId: ext,
-      });
+      };
+      if (gwCh || gwExt) {
+        body.gatewayChannel = gwCh ? gwCh.toLowerCase() : null;
+        body.gatewayExternalId = gwExt;
+      }
+      await IntegrationsApi.create(body);
       setBotId('');
       setChannel('');
       setExternalId('');
+      setCreateGatewayChannel('');
+      setCreateGatewayExternalId('');
       await loadData();
     } catch (e) {
       const msg =
@@ -366,6 +406,79 @@ export default function IntegrationsPage() {
     }
   }
 
+  function clearGatewaySaveError(id) {
+    setGatewaySaveErrors((prev) => {
+      const key = String(id);
+      if (!(key in prev)) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }
+
+  function addGatewaySaveBusyId(id) {
+    setGatewaySaveBusyIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+  }
+
+  function removeGatewaySaveBusyId(id) {
+    setGatewaySaveBusyIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }
+
+  function updateGatewayDraft(id, field, value) {
+    const key = String(id);
+    setGatewayDrafts((prev) => ({
+      ...prev,
+      [key]: {
+        channel: field === 'channel' ? value : (prev[key]?.channel ?? ''),
+        externalId:
+          field === 'externalId' ? value : (prev[key]?.externalId ?? ''),
+      },
+    }));
+  }
+
+  async function handleSaveGateway(id) {
+    const key = String(id);
+    clearGatewaySaveError(id);
+    const draft = gatewayDrafts[key] ?? { channel: '', externalId: '' };
+    const gwCh = draft.channel.trim().toLowerCase();
+    const gwExt = draft.externalId.trim();
+    if ((gwCh && !gwExt) || (!gwCh && gwExt)) {
+      setGatewaySaveErrors((prev) => ({
+        ...prev,
+        [key]:
+          'Gateway Channel and Gateway External ID must be provided together.',
+      }));
+      return;
+    }
+    addGatewaySaveBusyId(id);
+    try {
+      await IntegrationsApi.update(id, {
+        gatewayChannel: gwCh || '',
+        gatewayExternalId: gwExt || '',
+      });
+      await loadData();
+    } catch (e) {
+      const msg =
+        e.response?.data?.title ||
+          e.response?.data?.message ||
+          (Array.isArray(e.response?.data?.errors) &&
+            e.response.data.errors.join('; ')) ||
+          e.message ||
+          'Save gateway failed';
+      setGatewaySaveErrors((prev) => ({ ...prev, [key]: msg }));
+    } finally {
+      removeGatewaySaveBusyId(id);
+    }
+  }
+
   async function handleDeleteWebhook(id) {
     if (
       !window.confirm(
@@ -400,6 +513,14 @@ export default function IntegrationsPage() {
   }
 
   const cellStyle = { verticalAlign: 'top' };
+  const gatewayInputStyle = {
+    width: '100%',
+    minWidth: '140px',
+    maxWidth: '220px',
+    fontSize: '0.8rem',
+    padding: '4px 6px',
+    boxSizing: 'border-box',
+  };
   const readOnlyInputStyle = {
     width: '100%',
     minWidth: '260px',
@@ -432,31 +553,20 @@ export default function IntegrationsPage() {
         </div>
         <div>
           <label htmlFor="integration-channel">Channel</label>{' '}
-          <input
+          <select
             id="integration-channel"
-            type="text"
-            list="integration-channel-presets"
             value={channel}
             onChange={(e) => setChannel(e.target.value)}
-            onBlur={(e) => {
-              setChannel(e.target.value.trim().toLowerCase());
-            }}
             disabled={createBusy}
-          />
-          <datalist id="integration-channel-presets">
-            <option value="telegram">Telegram</option>
-            <option value="whatsapp">WhatsApp Cloud API</option>
-            <option value="whatsapp-cloud">WhatsApp Cloud API (alias)</option>
-            <option value="meta-whatsapp">WhatsApp Cloud API (alias)</option>
-            <option value="slack">Slack Events API</option>
-            <option value="slack-events">Slack Events API (alias)</option>
-            <option value="slack-api">Slack Events API (alias)</option>
-            <option value="web">Web</option>
-            <option value="generic-webhook">Generic Webhook</option>
-            <option value="webhook">Generic Webhook (alias)</option>
-            <option value="generic">Generic Webhook (alias)</option>
-            <option value="custom">Generic Webhook (alias)</option>
-          </datalist>
+            style={{ minWidth: '220px', fontSize: '0.95rem' }}
+          >
+            <option value="">-- Select channel --</option>
+            {CHANNEL_OPTIONS.map((chOpt) => (
+              <option key={chOpt.value} value={chOpt.value}>
+                {chOpt.label}
+              </option>
+            ))}
+          </select>
         </div>
         <div>
           <label htmlFor="integration-external-id">
@@ -467,6 +577,37 @@ export default function IntegrationsPage() {
             type="text"
             value={externalId}
             onChange={(e) => setExternalId(e.target.value)}
+            disabled={createBusy}
+          />
+        </div>
+        <div>
+          <label htmlFor="integration-gateway-channel">
+            Gateway channel (optional — must match an outbound sender)
+          </label>{' '}
+          <select
+            id="integration-gateway-channel"
+            value={createGatewayChannel}
+            onChange={(e) => setCreateGatewayChannel(e.target.value)}
+            disabled={createBusy}
+            style={{ minWidth: '220px', fontSize: '0.95rem' }}
+          >
+            <option value="">-- Select Gateway Channel (Optional) --</option>
+            {CHANNEL_OPTIONS.map((chOpt) => (
+              <option key={chOpt.value} value={chOpt.value}>
+                {chOpt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="integration-gateway-external-id">
+            Gateway external ID (optional — destination chat id for that channel)
+          </label>{' '}
+          <input
+            id="integration-gateway-external-id"
+            type="text"
+            value={createGatewayExternalId}
+            onChange={(e) => setCreateGatewayExternalId(e.target.value)}
             disabled={createBusy}
           />
         </div>
@@ -495,6 +636,15 @@ export default function IntegrationsPage() {
               <th style={{ textAlign: 'left', padding: '4px 8px' }}>Channel</th>
               <th style={{ textAlign: 'left', padding: '4px 8px' }}>Provider</th>
               <th style={{ textAlign: 'left', padding: '4px 8px' }}>ExternalId</th>
+              <th style={{ textAlign: 'left', padding: '4px 8px' }}>
+                Gateway channel
+              </th>
+              <th style={{ textAlign: 'left', padding: '4px 8px' }}>
+                Gateway external ID
+              </th>
+              <th style={{ textAlign: 'left', padding: '4px 8px' }}>
+                Save gateway
+              </th>
               <th style={{ textAlign: 'left', padding: '4px 8px' }}>Enabled</th>
               <th style={{ textAlign: 'left', padding: '4px 8px' }}>
                 Webhook URL
@@ -507,8 +657,13 @@ export default function IntegrationsPage() {
             {integrations.map((row) => {
               const id = row.id;
               const busy = loadingIds.has(id);
+              const gatewayBusy = gatewaySaveBusyIds.has(id);
               const supportsWebhook = integrationSupportsWebhook(row);
               const key = String(id);
+              const gwDraft = gatewayDrafts[key] ?? {
+                channel: '',
+                externalId: '',
+              };
               const summary = webhookSummaries[key];
               const statusLoading = webhookStatusLoadingIds.has(id);
               const webhookBusy = webhookActionIds.has(id);
@@ -522,6 +677,61 @@ export default function IntegrationsPage() {
                   <td style={cellStyle}>{row.channel ?? ''}</td>
                   <td style={cellStyle}>{row.provider ?? 'unknown'}</td>
                   <td style={cellStyle}>{row.externalId ?? ''}</td>
+                  <td style={cellStyle}>
+                    <select
+                      aria-label="Gateway channel"
+                      value={gwDraft.channel}
+                      onChange={(e) =>
+                        updateGatewayDraft(
+                          id,
+                          'channel',
+                          (e.target.value || '').trim().toLowerCase()
+                        )
+                      }
+                      style={gatewayInputStyle}
+                    >
+                      <option value="">-- None --</option>
+                      {channelOptionsWithCurrent(gwDraft.channel).map(
+                        (chOpt) => (
+                          <option key={chOpt.value} value={chOpt.value}>
+                            {chOpt.label}
+                          </option>
+                        )
+                      )}
+                    </select>
+                  </td>
+                  <td style={cellStyle}>
+                    <input
+                      type="text"
+                      aria-label="Gateway external ID"
+                      value={gwDraft.externalId}
+                      onChange={(e) =>
+                        updateGatewayDraft(id, 'externalId', e.target.value)
+                      }
+                      style={gatewayInputStyle}
+                    />
+                  </td>
+                  <td style={cellStyle}>
+                    <button
+                      type="button"
+                      disabled={busy || gatewayBusy}
+                      onClick={() => handleSaveGateway(id)}
+                    >
+                      {gatewayBusy ? 'Saving…' : 'Save'}
+                    </button>
+                    {gatewaySaveErrors[key] && (
+                      <div
+                        style={{
+                          marginTop: '6px',
+                          fontSize: '0.8rem',
+                          color: '#b91c1c',
+                          maxWidth: '200px',
+                        }}
+                      >
+                        {gatewaySaveErrors[key]}
+                      </div>
+                    )}
+                  </td>
                   <td style={cellStyle}>{row.isEnabled ? 'Yes' : 'No'}</td>
                   <td style={cellStyle}>
                     {supportsWebhook ? (

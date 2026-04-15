@@ -64,7 +64,7 @@ Services:
 | **ollama** | 11434 | Local inference (optional) |
 | **ngrok** | 4040 | Tunnel UI + HTTPS forwarding to **api** |
 
-**Persistence:** Default SQLite file **`aiemployee.db`** is created in the mounted workspace when using the compose file’s volume mapping. For production, prefer a **managed database** or **mounted volume** for the DB file path. For Docker Compose PostgreSQL, ETL, and connectivity conventions, see **[postgresql-migration-phase4.md](./postgresql-migration-phase4.md)**. For production cutover, rollback, and Postgres-primary operations, see **[postgresql-cutover-phase5.md](./postgresql-cutover-phase5.md)**.
+**Persistence:** The API requires **PostgreSQL with pgvector** (see **`postgres`** in [`docker-compose.yml`](../docker-compose.yml)). See **[PHASE7_POSTGRES_ONLY.md](./PHASE7_POSTGRES_ONLY.md)**, **[postgresql-migration-phase4.md](./postgresql-migration-phase4.md)** (archived ETL notes), and **[postgresql-cutover-phase5.md](./postgresql-cutover-phase5.md)**.
 
 **Secrets:** Use **`docker-compose.override.yml`** (gitignored) or orchestrator secrets for **`Admin__ApiKey`**, **`Telegram__BotToken`** (if used), and ngrok token.
 

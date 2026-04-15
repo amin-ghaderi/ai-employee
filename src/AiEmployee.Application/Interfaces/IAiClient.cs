@@ -1,4 +1,5 @@
 using AiEmployee.Application.Dtos;
+using AiEmployee.Application.Prompting;
 
 namespace AiEmployee.Application.Interfaces;
 
@@ -10,5 +11,9 @@ public interface IAiClient
 
     Task<LeadClassificationDto> ClassifyLeadAsync(string prompt);
 
-    Task<string> ChatAsync(string userId, string prompt);
+    Task<string> ChatAsync(
+        string userId,
+        string prompt,
+        ChatCompletionRequestContext? context = null,
+        CancellationToken cancellationToken = default);
 }

@@ -21,6 +21,12 @@ public static class BotIntegrationMapper
             Provider = providerKey,
             ExternalId = integration.ExternalId,
             IsEnabled = integration.IsEnabled,
+            GatewayChannel = string.IsNullOrWhiteSpace(integration.GatewayChannel)
+                ? null
+                : BotIntegrationChannelNames.NormalizeChannelValue(integration.GatewayChannel),
+            GatewayExternalId = string.IsNullOrWhiteSpace(integration.GatewayExternalId)
+                ? null
+                : integration.GatewayExternalId.Trim(),
             SupportsWebhook = supportsWebhook,
         };
     }
